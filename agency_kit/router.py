@@ -89,7 +89,7 @@ def classify(goal: str) -> list:
             valid = [d for d in depts if d in ("product", "marketing", "solve")]
             if valid:
                 return valid
-    except Exception:
+    except json.JSONDecodeError:
         pass
 
     # Keyword fallback

@@ -94,8 +94,6 @@ def check(target: str = ".") -> list:
     detail = f"installed: {', '.join(installed) or 'none'}; missing: {', '.join(missing) or 'none'}"
     checks.append(("at least one kit installed (product-kit | marketing-kit | solve-kit)",
                    bool(installed), detail))
-    print(f"  kits installed : {', '.join(installed) or 'none'}")
-    print(f"  kits missing   : {', '.join(missing) or 'none'}")
 
     # Agents SDK installed
     checks.append((

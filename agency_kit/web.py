@@ -82,7 +82,7 @@ def gemini_web_search(query: str) -> str:
         if sources:
             answer += "\n\nSources:\n" + "\n".join(sources)
         return answer or "No grounded result found."
-    except Exception as e:  # network / quota / model errors -> caller marks 'unknown'
+    except Exception as e:  # network / quota / model errors — third-party libs throw unpredictable types; caller marks 'unknown'
         return f"web_search error: {type(e).__name__}: {str(e)[:200]}"
 
 
