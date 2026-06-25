@@ -30,11 +30,11 @@ def _next_id(missions: Path) -> str:
 def _dossier_md(mission_id: str, d: dict) -> str:
     """Render the dossier dict as Markdown."""
     lines = [f"# Mission Dossier — {mission_id}", ""]
-    for key in ("goal", "context", "baseline", "iteration", "direction_check"):
+    for key in ("goal", "route", "context", "iteration", "direction_check"):
         lines.append(f"- **{key}**: {d.get(key)}")
-    lines.append("\n## Assumptions")
-    for a in d.get("assumptions", []) or []:
-        lines.append(f"- {a}")
+    dept_keys = list((d.get("dept_outputs") or {}).keys())
+    if dept_keys:
+        lines.append(f"- **departments run**: {', '.join(dept_keys)}")
     lines.append("\n## Decisions")
     for dec in d.get("decisions", []) or []:
         lines.append(f"- {dec}")

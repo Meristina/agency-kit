@@ -85,8 +85,8 @@ def check(target: str = ".") -> list:
     # agency_commander importable
     checks.append((
         "agency_commander importable",
-        importlib.util.find_spec("agency_commander") is not None,
-        "check agency_kit install",
+        importlib.util.find_spec("agency_kit.commander") is not None,
+        "pip install -e . (editable) or pip install agency-kit",
     ))
 
     # at least one downstream kit installed
