@@ -24,7 +24,7 @@ agency_commander (ELITE)
 ```
 run_mission(goal)
   │
-  ├── CLASSIFY: router_agent.classify(goal) → dept list
+  ├── CLASSIFY: classify(goal) → dept list        # classify() from agency_kit.router
   │   └── [optional DC: confirm route or steer]
   │
   ├── ITERATE (max 3):
@@ -66,6 +66,7 @@ Carried across the whole mission (passed as JSON block in every brief):
   "decisions": list,
   "sources": list,
   "open_to_verify": list,
+  "direction_check": dict | None,  # DC result: {"iteration", "choice", "note"}
   "verdicts": list,         # Inspector verdicts per iteration
   "iteration": int,
 }

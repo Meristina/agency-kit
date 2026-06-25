@@ -84,6 +84,9 @@ def test_required_fixes_extracted():
     )
     fixes = mission.extract_required_fixes(txt)
     assert len(fixes) == 3
+    assert any("$4B" in f and "$7B" in f for f in fixes), "market-size conflict fix not extracted"
+    assert any("North Star" in f for f in fixes), "metric-mismatch fix not extracted"
+    assert any("audit log" in f for f in fixes), "handoff-gap fix not extracted"
 
 
 # ---- the agency-kit control-flow branches -----------------------------------

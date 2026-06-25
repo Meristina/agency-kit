@@ -30,7 +30,7 @@ The router reads the goal and returns an **ordered** list of departments (earlie
 
 | Goal mentions… | → Department |
 |---|---|
-| `product` · `feature` · `roadmap` · `jtbd` · `pmf` · `prioritization` | **product** |
+| `product` · `feature` · `roadmap` · `jtbd` · `pmf` · `discovery` · `prioritization` | **product** |
 | `campaign` · `content` · `launch` · `positioning` · `seo` · `brand` | **marketing** |
 | `debug` · `architect` · `algorithm` · `implement` · `solve` · `fix` | **solve** |
 
@@ -87,9 +87,9 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 | Variable | Default | Description |
 |---|---|---|
-| `AK_ELITE_MODEL` | `gpt-5` | Model for the meta-commander, inspector, and router |
+| `AK_ELITE_MODEL` | `gpt-5` | Model for the meta-commander and inspector |
 | `AK_STANDARD_MODEL` | `gpt-5-mini` | Model for the routing agent |
-| `AK_SEARCH` | `ddg` | Search backend (`ddg` / `tavily` / `gemini` / `openai`) |
+| `AK_SEARCH` | auto | Search backend (`ddg` / `tavily` / `gemini` / `openai`). When unset, auto-detects from keys present: `TAVILY_API_KEY` → tavily; `GEMINI_API_KEY` → gemini; `OPENAI_BASE_URL` set → ddg; otherwise OpenAI hosted WebSearchTool. |
 | `OPENAI_API_KEY` | required | OpenAI key (or point at any OpenAI-compatible endpoint via `OPENAI_BASE_URL`) |
 
 Secrets and overrides are also read from a local, gitignored `.env` (loaded before any model or key is resolved).

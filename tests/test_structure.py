@@ -53,14 +53,15 @@ def test_cli_importable():
 # ---- wiring: commander invokes the router and the inspector -----------------
 
 def test_commander_wires_router_and_inspector():
-    txt = (PKG / "commander.py").read_text(encoding="utf-8")
-    assert "router_agent.as_tool" in txt, "router not wired into the agency commander"
-    assert "agency_inspector.as_tool" in txt, "inspector not wired into the agency commander"
+    from agency_kit.commander import agency_commander
+    tool_names = {t.get("tool_name") for t in agency_commander.tools if isinstance(t, dict)}
+    assert "classify" in tool_names, "router not wired into the agency commander tools"
+    assert "inspect" in tool_names, "inspector not wired into the agency commander tools"
 
 
 # ---- optional department imports are guarded by try/except ------------------
 
 def test_optional_kit_imports_guarded():
-    txt = (PKG / "commander.py").read_text(encoding="utf-8")
-    assert "_HAS_PRODUCT" in txt, "optional department imports are not guarded (no _HAS_PRODUCT flag)"
-    assert "try:" in txt and "except ImportError" in txt, "department imports lack try/except guards"
+    from agency_kit import commander
+    assert hasattr(commander, "_HAS_PRODUCT"), "optional department imports are not guarded (no _HAS_PRODUCT flag)"
+    assert isinstance(commander._HAS_PRODUCT, bool), "_HAS_PRODUCT should be a bool set by the try/except guard"

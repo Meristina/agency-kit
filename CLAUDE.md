@@ -34,7 +34,7 @@ pytest tests/ -v          # 18 tests, offline (SDK stubbed in conftest.py)
 ```bash
 AK_ELITE_MODEL=gpt-5           # meta-commander, inspector
 AK_STANDARD_MODEL=gpt-5-mini   # routing agent
-AK_SEARCH=ddg                  # search backend: ddg | tavily | gemini | openai
+AK_SEARCH=ddg                  # search backend: ddg | tavily | gemini | openai (auto-detect when unset)
 OPENAI_API_KEY=...
 # Each installed kit also reads its own vars: PK_ELITE_MODEL, MK_ELITE_MODEL, etc.
 ```
