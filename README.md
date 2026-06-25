@@ -72,7 +72,25 @@ pip install -e ".[tavily]"       # Tavily
 pip install -e ".[gemini]"       # Gemini grounding
 ```
 
-For non-OpenAI brains via LiteLLM:
+For Anthropic (direct — no extra dependency):
+
+```bash
+export OPENAI_BASE_URL="https://api.anthropic.com/v1/"
+export OPENAI_API_KEY="sk-ant-..."
+export AK_ELITE_MODEL="claude-opus-4-8"
+export AK_STANDARD_MODEL="claude-sonnet-4-6"
+```
+
+For Gemini (direct):
+
+```bash
+export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
+export OPENAI_API_KEY="<google-ai-studio-key>"
+export AK_ELITE_MODEL="gemini-3.5-flash"
+export AK_STANDARD_MODEL="gemini-3.1-flash-lite"
+```
+
+LiteLLM is only needed for dynamic multi-provider routing within a single run:
 
 ```bash
 pip install -e ".[litellm]"

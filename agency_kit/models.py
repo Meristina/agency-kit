@@ -4,7 +4,19 @@ Defaults keep OpenAI (non-breaking):
   AK_ELITE_MODEL     elite tier  (🎖️)  default: "gpt-5.5"
   AK_STANDARD_MODEL  standard    (🔵)  default: "gpt-5.4-mini"
 
-Non-OpenAI providers via the LiteLLM extra (`pip install "openai-agents[litellm]"`):
+Anthropic (direct — no extra dependency, same pattern as Gemini):
+  export OPENAI_BASE_URL="https://api.anthropic.com/v1/"
+  export OPENAI_API_KEY="sk-ant-..."
+  export AK_ELITE_MODEL="claude-opus-4-8"
+  export AK_STANDARD_MODEL="claude-sonnet-4-6"
+
+Gemini (direct):
+  export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
+  export OPENAI_API_KEY="<google-ai-studio-key>"
+  export AK_ELITE_MODEL="gemini-3.5-flash"
+  export AK_STANDARD_MODEL="gemini-3.1-flash-lite"
+
+LiteLLM (only needed for dynamic multi-provider routing within one run):
   export AK_ELITE_MODEL="litellm/anthropic/claude-opus-4-8"
   export AK_STANDARD_MODEL="litellm/anthropic/claude-sonnet-4-6"
 
