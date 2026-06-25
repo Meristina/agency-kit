@@ -89,6 +89,42 @@ def test_required_fixes_extracted():
     assert any("audit log" in f for f in fixes), "handoff-gap fix not extracted"
 
 
+def test_required_fixes_blank_line_between_heading_and_bullets():
+    # Regression: blank line between "Required Fixes:" and the first bullet
+    # used to close the section before any bullet was captured → [] returned.
+    txt = (
+        "Required Fixes (Blocking):\n"
+        "\n"
+        "- reconcile the $4B vs $7B market-size discrepancy\n"
+        "- align North Star with campaign KPI\n"
+    )
+    fixes = mission.extract_required_fixes(txt)
+    assert len(fixes) == 2, "blank line between heading and bullets must not close the section"
+
+
+def test_veto_without_structured_fixes_falls_back_to_inspector_text(monkeypatch):
+    # Regression: when the inspector VETOs with prose (no structured "Required Fixes:" section),
+    # extract_required_fixes returns [] and the next commander pass ran blind — same output,
+    # same VETO, cap hit without progress. Observed in production: missions/001.
+    # Fix: fall back to the full inspector output as a single required fix.
+    _stub_classify(monkeypatch)
+    inspector_prose = (
+        "VERDICT: VETO\n"
+        "The deliverable is an 'Orphaned Input' stage — no actual NSM was produced, "
+        "only clarifying questions. The agency must proceed with reasonable assumptions."
+    )
+    runner = ScriptedRunner(["OUTPUT", inspector_prose, "OUTPUT2", "VERDICT: PASS"])
+    monkeypatch.setattr(mission, "Runner", runner)
+    d = mission.run_mission("goal")
+    # Iteration 1: VETO with no structured fixes → fallback to inspector text
+    iter1_fixes = d["verdicts"][0]["required_fixes"]
+    assert len(iter1_fixes) == 1, "fallback required fix must be set when inspector VETO has no structured fixes"
+    assert "VETO" in iter1_fixes[0], "fallback must include the verdict type"
+    assert "Orphaned Input" in iter1_fixes[0], "fallback must carry the inspector reasoning"
+    # Iteration 2: commander received the feedback and produced a passing result
+    assert d["verdicts"][1]["verdict"] == "PASS"
+
+
 # ---- the agency-kit control-flow branches -----------------------------------
 
 def test_happy_path_pass(monkeypatch):

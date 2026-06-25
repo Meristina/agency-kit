@@ -155,28 +155,28 @@ def extract_required_fixes(text: str) -> list:
     lines = (text or "").splitlines()
     in_fixes_section = False
     for line in lines:
-        raw = line.strip()
-        s = raw.lstrip("-*•").strip()
-        upper = s.upper()
+        stripped = line.strip()
+        content = stripped.lstrip("-*•").strip()
+        content_upper = content.upper()
         # Detect a section heading like "**Required Fixes (Blocking):**"
-        if any(p in upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX", "REQUIRED CHANGE")):
+        if any(p in content_upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX", "REQUIRED CHANGE")):
             in_fixes_section = True
             continue
         # Exit section on next heading only; skip blank lines within the section
         # (blank line between heading and first bullet must not close the section)
         if in_fixes_section:
-            if not raw:
+            if not stripped:
                 continue
-            if raw.startswith("#") or (raw.startswith("**") and raw.endswith("**")):
+            if stripped.startswith("#") or (stripped.startswith("**") and stripped.endswith("**")):
                 in_fixes_section = False
                 continue
             # Collect bullets in the section
-            if raw.startswith(("-", "*", "•")) and s:
-                fixes.append(s)
+            if stripped.startswith(("-", "*", "•")) and content:
+                fixes.append(content)
                 continue
         # Also capture standalone keyword-prefixed lines anywhere in the text
-        if s and any(upper.startswith(p) for p in ("FIX:", "REQUIRED:", "BLOCKING:", "BLOCK:")):
-            fixes.append(s)
+        if content and any(content_upper.startswith(p) for p in ("FIX:", "REQUIRED:", "BLOCKING:", "BLOCK:")):
+            fixes.append(content)
     return fixes
 
 

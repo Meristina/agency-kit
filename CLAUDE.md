@@ -26,7 +26,7 @@ inspector (`inspector_agency`), one mission loop.
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -v          # 23 tests, offline (SDK stubbed in conftest.py)
+pytest tests/ -v          # 25 tests, offline (SDK stubbed in conftest.py)
 ```
 
 ## Environment variables

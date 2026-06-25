@@ -15,8 +15,8 @@ Agency Commander
  └─ inspector_agency     🎖️  cross-department consistency check (veto power)
 ```
 
-🎖️ **elite** — `AK_ELITE_MODEL` (default `gpt-5`) — meta-commander, inspector, and each department commander
-🔵 **standard** — `AK_STANDARD_MODEL` (default `gpt-5-mini`) — the routing agent
+🎖️ **elite** — `AK_ELITE_MODEL` (default `gpt-5.5`) — meta-commander, inspector, and each department commander
+🔵 **standard** — `AK_STANDARD_MODEL` (default `gpt-5.4-mini`) — the routing agent
 
 Departments are **optional extras**. If a department package is not installed, its commander is simply absent from the toolset — the agency commander routes around it and notes the gap, never fabricating its output.
 
