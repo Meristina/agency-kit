@@ -162,10 +162,10 @@ def extract_required_fixes(text: str) -> list:
         if any(p in upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX", "REQUIRED CHANGE")):
             in_fixes_section = True
             continue
-        # Exit section on a blank line or next heading
+        # Exit section on next heading only; skip blank lines within the section
+        # (blank line between heading and first bullet must not close the section)
         if in_fixes_section:
             if not raw:
-                in_fixes_section = False
                 continue
             if raw.startswith("#") or (raw.startswith("**") and raw.endswith("**")):
                 in_fixes_section = False
@@ -266,6 +266,13 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         )
         verdict = parse_verdict(inspection.final_output)
         required_fixes = extract_required_fixes(inspection.final_output)
+        # If the inspector vetoed/flagged but no structured fixes were extracted,
+        # carry the full inspector output so the commander has reasoning on re-entry
+        # rather than repeating the same run blind.
+        if verdict != "PASS" and not required_fixes:
+            required_fixes = [
+                f"Inspector {verdict} — full feedback:\n{inspection.final_output.strip()}"
+            ]
         dossier["verdicts"].append({
             "iteration": dossier["iteration"],
             "verdict": verdict,
