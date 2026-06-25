@@ -8,9 +8,18 @@ requires a source checkout / editable install.
 
 import importlib.util
 import shutil
+import sys
 from pathlib import Path
 
 from . import integrations
+
+
+def _spec_present(name: str) -> bool:
+    """True if `name` is importable. Handles stub modules whose __spec__ is None."""
+    try:
+        return importlib.util.find_spec(name) is not None
+    except ValueError:
+        return name in sys.modules
 
 # The downstream kits the agency orchestrates; at least one must be installed.
 KITS = ("product_kit", "marketing_kit", "solve_kit")
@@ -65,7 +74,7 @@ def _installed_kits():
     installed, missing = [], []
     for mod in KITS:
         label = KIT_LABELS[mod]
-        (installed if importlib.util.find_spec(mod) else missing).append(label)
+        (installed if _spec_present(mod) else missing).append(label)
     return installed, missing
 
 
@@ -85,7 +94,7 @@ def check(target: str = ".") -> list:
     # agency_commander importable
     checks.append((
         "agency_commander importable",
-        importlib.util.find_spec("agency_kit.commander") is not None,
+        _spec_present("agency_kit.commander"),
         "pip install -e . (editable) or pip install agency-kit",
     ))
 
@@ -98,7 +107,7 @@ def check(target: str = ".") -> list:
     # Agents SDK installed
     checks.append((
         "Agents SDK installed (needed for `agency run`)",
-        importlib.util.find_spec("agents") is not None,
+        _spec_present("agents"),
         "pip install openai-agents",
     ))
     return checks
