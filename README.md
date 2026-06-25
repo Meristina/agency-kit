@@ -76,8 +76,8 @@ For non-OpenAI brains via LiteLLM:
 
 ```bash
 pip install -e ".[litellm]"
-export AK_ELITE_MODEL="litellm/anthropic/claude-opus-4-20250514"
-export AK_STANDARD_MODEL="litellm/anthropic/claude-3-5-sonnet-20241022"
+export AK_ELITE_MODEL="litellm/anthropic/claude-opus-4-8"
+export AK_STANDARD_MODEL="litellm/anthropic/claude-sonnet-4-6"
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
@@ -87,8 +87,8 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 | Variable | Default | Description |
 |---|---|---|
-| `AK_ELITE_MODEL` | `gpt-5` | Model for the meta-commander and inspector |
-| `AK_STANDARD_MODEL` | `gpt-5-mini` | Model for the routing agent |
+| `AK_ELITE_MODEL` | `gpt-5.5` | Model for the meta-commander and inspector |
+| `AK_STANDARD_MODEL` | `gpt-5.4-mini` | Model for the routing agent |
 | `AK_SEARCH` | auto | Search backend (`ddg` / `tavily` / `gemini` / `openai`). When unset, auto-detects from keys present: `TAVILY_API_KEY` → tavily; `GEMINI_API_KEY` → gemini; `OPENAI_BASE_URL` set → ddg; otherwise OpenAI hosted WebSearchTool. |
 | `OPENAI_API_KEY` | required | OpenAI key (or point at any OpenAI-compatible endpoint via `OPENAI_BASE_URL`) |
 

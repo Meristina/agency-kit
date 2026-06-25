@@ -9,7 +9,7 @@ description = "agency-kit — meta-orchestrator for the AI Agency (product-kit +
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = ["openai-agents"]
+dependencies = ["openai-agents>=0.17.0"]
 
 [project.optional-dependencies]
 product = ["product-kit"]
@@ -18,7 +18,7 @@ solve = ["solve-kit"]
 all = ["product-kit", "marketing-kit", "solve-kit"]
 dev = ["pytest"]
 gemini = ["google-genai"]
-tavily = ["tavily-python"]
+tavily = ["tavily-python>=0.7.0"]
 ddg = ["ddgs"]
 litellm = ["openai-agents[litellm]"]
 
