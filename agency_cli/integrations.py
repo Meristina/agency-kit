@@ -64,12 +64,14 @@ def _install_claude(sources, target) -> dict:
     # the engine the commands drive
     for f in sources["agents"].glob("*.md"):
         _write(target / ".claude" / "agents" / f.name, f.read_text(encoding="utf-8"))
-    for d in sources["skills"].iterdir():
-        if d.is_dir():
-            shutil.copytree(d, target / ".claude" / "skills" / d.name, dirs_exist_ok=True)
+    skills_dir = sources["skills"]
+    if skills_dir.is_dir():
+        for d in skills_dir.iterdir():
+            if d.is_dir():
+                shutil.copytree(d, target / ".claude" / "skills" / d.name, dirs_exist_ok=True)
     return {"commands": cmds,
             "agents": len(list(sources["agents"].glob("*.md"))),
-            "skills": sum(1 for d in sources["skills"].iterdir() if d.is_dir())}
+            "skills": sum(1 for d in skills_dir.iterdir() if d.is_dir()) if skills_dir.is_dir() else 0}
 
 
 def _install_codex(sources, target) -> dict:
