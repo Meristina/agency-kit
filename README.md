@@ -129,6 +129,8 @@ Secrets and overrides are also read from a local, gitignored `.env` (loaded befo
 ```bash
 # Scaffold .agency/ + slash commands for your harness
 agency init
+# installs: /agency.mission  /agency.frame  /agency.product
+#           /agency.marketing /agency.solve  /agency.inspect
 
 # Run a headless mission (router decides the route, then auto-proceeds)
 agency run "Launch our new B2B analytics product"
@@ -138,6 +140,9 @@ agency run --steer "Take this feature end-to-end"
 
 # Prerequisite / health check
 agency check
+
+# Regenerate the bundled payload after editing .agency/ or agents/
+agency sync
 ```
 
 ### Python
@@ -192,3 +197,9 @@ pip install -e ".[dev]"
 pytest
 # offline — SDK stub, no API key, no network
 ```
+
+---
+
+## More
+
+**`GUIDE.md`** — full usage manual: pipeline walkthrough, slash-command catalogue, skills reference, and the repeatable pattern to wire a new department kit.
