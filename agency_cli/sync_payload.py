@@ -46,6 +46,7 @@ DEPT_KITS = [
     ("product-kit",   "product"),
     ("marketing-kit", "marketing"),
     ("solve-kit",     "solve"),
+    ("finance-kit",   "finance"),
 ]
 
 
@@ -109,27 +110,29 @@ def sync(allow_missing: bool = False) -> dict:
     summary["agency"] = sum(1 for _ in agency_dst.rglob("*") if _.is_file())
 
     # 2) agents/ — agency-kit first, then all dept kits (with inspector renaming)
+    # With allow_missing we update in-place so committed files for absent kits survive.
     agents_dst = dest / "agents"
-    if agents_dst.exists():
+    if agents_dst.exists() and not allow_missing:
         shutil.rmtree(agents_dst)
-    agents_dst.mkdir(parents=True)
+    agents_dst.mkdir(parents=True, exist_ok=True)
 
     n_agents = _copy_agents(root / "agents", agents_dst, "agency")
 
     for repo_name, dept in DEPT_KITS:
         dept_agents = _dept_root(repo_name) / "agents"
         if not dept_agents.exists():
-            print(f"  [skip] {repo_name}/agents not found")
+            print(f"  [skip] {repo_name}/agents not found — keeping committed files")
             continue
         n_agents += _copy_agents(dept_agents, agents_dst, dept)
 
     summary["agents"] = n_agents
 
     # 3) skills/ — agency-kit first, then all dept kits (merged, no conflicts)
+    # Same allow_missing guard: preserve committed skills for absent kits.
     skills_dst = dest / "skills"
-    if skills_dst.exists():
+    if skills_dst.exists() and not allow_missing:
         shutil.rmtree(skills_dst)
-    skills_dst.mkdir(parents=True)
+    skills_dst.mkdir(parents=True, exist_ok=True)
 
     n_skills = 0
     agency_skills = root / "skills"

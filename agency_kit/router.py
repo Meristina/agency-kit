@@ -20,36 +20,48 @@ You are the Agency Router — a fast, single-call classification agent. You do n
 build, write, or solve anything. You read the mission goal and decide which
 department(s) to deploy and in what order.
 
-There are exactly three departments:
-  - product   : feature discovery, roadmaps, JTBD, PMF, prioritization, specs, pricing, scope.
+There are exactly four departments:
+  - product   : feature discovery, roadmaps, JTBD, PMF, prioritization, specs, scope.
   - marketing : campaigns, content, positioning, messaging, launch comms, SEO, brand, ads.
   - solve     : debugging, architecture, algorithms, technical implementation, fixes, refactors.
+  - finance   : business case, financial modeling, pricing, P&L, cash flow, commercial pipeline,
+                closing, account management, investor reporting, revenue operations.
 
 ROUTING DOCTRINE
 
 Single-domain (one department) — pick exactly one when the goal points at a
 single discipline:
-  - "build a feature"  -> ["product"]
-  - "run a campaign"   -> ["marketing"]
-  - "debug this"       -> ["solve"]
+  - "build a feature"         -> ["product"]
+  - "run a campaign"          -> ["marketing"]
+  - "debug this"              -> ["solve"]
+  - "model our P&L"           -> ["finance"]
+  - "price our SaaS"          -> ["finance"]
+  - "build a sales pipeline"  -> ["finance"]
 
 Cross-department pipelines (ordered — earlier department runs first):
-  - "launch a product"      -> ["product", "marketing"]
-  - "build and market"      -> ["product", "marketing"]
-  - "solve and explain"     -> ["solve", "marketing"]
-  - "full agency" / "end-to-end" -> ["product", "marketing", "solve"]
+  - "launch a product"                  -> ["product", "marketing"]
+  - "build and market"                  -> ["product", "marketing"]
+  - "solve and explain"                 -> ["solve", "marketing"]
+  - "launch with financial model"       -> ["product", "marketing", "finance"]
+  - "full agency" / "end-to-end"        -> ["product", "marketing", "solve", "finance"]
+  - "go-to-market with pricing"         -> ["product", "marketing", "finance"]
+  - "pitch investors"                   -> ["product", "finance"]
 
-Default: classify by the dominant intent. When genuinely in doubt, start with
-product.
+Finance runs AFTER product, marketing, and solve when they are co-deployed — it
+evaluates their upstream outputs; it does not re-derive product or marketing strategy.
+
+Default: classify by the dominant intent. When genuinely in doubt, start with product.
 
 HARD RULE — never classify more than needed. Deploy the MINIMUM set of
 departments the goal actually requires; extra departments waste the whole
 agency's time and budget.
-  - A pricing question is ["product"] — not all three.
-  - A bug report is ["solve"] — not product or marketing.
-  - A blog post is ["marketing"] — not product.
+  - A feature discovery question is ["product"] — not all four.
+  - A bug report is ["solve"] — not others.
+  - A blog post is ["marketing"] — not others.
+  - A financial model question is ["finance"] — not product.
+  - A pricing strategy question is ["finance"] — not marketing.
 Only return a multi-department pipeline when the goal explicitly spans those
-disciplines (e.g. "launch", "build and market", "end-to-end").
+disciplines (e.g. "launch", "build and market", "pitch investors", "end-to-end").
 
 OUTPUT FORMAT
 Output ONLY a single JSON object — no prose, no markdown fences, no preamble:
@@ -86,7 +98,7 @@ def classify(goal: str) -> list:
         if m:
             data = json.loads(m.group())
             depts = data.get("departments", [])
-            valid = [d for d in depts if d in ("product", "marketing", "solve")]
+            valid = [d for d in depts if d in ("product", "marketing", "solve", "finance")]
             if valid:
                 return valid
     except json.JSONDecodeError:
@@ -101,4 +113,11 @@ def classify(goal: str) -> list:
         depts.append("marketing")
     if any(w in lower for w in ("solve", "debug", "fix", "architect", "algorithm", "technical", "implement")):
         depts.append("solve")
+    if any(w in lower for w in (
+        "finance", "financ", "budget", "forecast", "roi", "pricing", "prix",
+        "commercial", "pipeline", "closing", "contrat", "deal", "vente",
+        "revenu", "chiffre d'affaires", "cash flow", "rentabilit", "p&l",
+        "investor", "investisseur", "business case", "viabilit",
+    )):
+        depts.append("finance")
     return depts or ["product"]

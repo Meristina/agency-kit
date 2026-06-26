@@ -234,6 +234,7 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
 
     # Classify once up front — re-classify only when the user steers the route.
     dossier["route"] = classify(goal)
+    dossier["context"] = {"classified_departments": dossier["route"]}
     print(f"Route: {dossier['route']}")
 
     while dossier["iteration"] < MAX_ITERS:
@@ -256,11 +257,12 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         print(f"Direction check: {dc_choice}" + (f" — {dc_note}" if dc_note else ""))
 
         if dc_choice == "STEER":
-            required_fixes = [
-                "Direction steer before execution: "
-                + (dc_note or "steer the route / mission framing")
-            ]
-            dossier["route"] = classify(goal)  # re-classify after user steer
+            steer_note = dc_note or "steer the route / mission framing"
+            required_fixes = [f"Direction steer before execution: {steer_note}"]
+            # Re-classify incorporating the steer note so the router can adjust the route.
+            classify_input = f"{goal}\n\nUser steer: {steer_note}"
+            dossier["route"] = classify(classify_input)
+            dossier["context"] = {"classified_departments": dossier["route"], "steered": True}
             print(f"Re-classified route: {dossier['route']}")
             continue
 
@@ -270,6 +272,11 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         # Carry the synthesis forward so the next iteration builds on it rather than
         # re-running all departments from scratch with an empty dossier.
         dossier["previous_synthesis"] = deliverable
+        dossier["decisions"].append({
+            "iteration": dossier["iteration"],
+            "route_executed": list(dossier["route"]),
+            "direction_check": dossier.get("direction_check", {}).get("choice"),
+        })
         required_fixes = []
 
         # ── INSPECT: FINAL cross-department audit ──────────────────────────

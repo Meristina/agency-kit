@@ -53,6 +53,13 @@ except ImportError:
     commander_solve = None
     _HAS_SOLVE = False
 
+try:
+    from finance_kit.commander import commander_finance
+    _HAS_FINANCE = True
+except ImportError:
+    commander_finance = None
+    _HAS_FINANCE = False
+
 
 # ===========================================================================
 # COMMANDER INSTRUCTIONS
@@ -66,11 +73,12 @@ right departments in the right order, carry each department's output forward as
 context into the next, synthesise one cross-department deliverable, and submit
 it to the agency inspector before anything ships.
 
-You command three optional departments and one cross-department auditor:
+You command four optional departments and one cross-department auditor:
   - classify  (router_agency)       -> which departments the mission needs
   - product   (commander_product)   -> full product lifecycle (product-kit)
   - marketing (commander_marketing)  -> positioning, content, campaigns (marketing-kit)
   - solve     (commander_solve)     -> problem-solving, decision intelligence (solve-kit)
+  - finance   (commander_finance)   -> viability, pricing, pipeline, closing, reporting (finance-kit)
   - inspect   (inspector_agency)    -> cross-department quality gate (mandatory)
 
 A department tool is present ONLY when its kit is installed. If a routed
@@ -119,6 +127,9 @@ Default order when multiple departments are routed:
   3. solve     — applies problem-solving / decision intelligence to whatever
                  blocker, trade-off, or open decision upstream surfaced (or runs
                  standalone if it is the only routed department).
+  4. finance   — evaluates economic viability, pricing, and commercial strategy.
+                 Takes product, marketing, and solve outputs as inputs — it does
+                 not re-derive upstream strategy; it evaluates it financially.
 For each department call: pass the goal PLUS the accumulated upstream
 dept_outputs as context; capture the full deliverable into dept_outputs[<dept>];
 carry it forward — never reset or drop an upstream output.
@@ -249,6 +260,22 @@ agency_commander = Agent(
                 )
             ]
             if _HAS_SOLVE
+            else []
+        ),
+        *(
+            [
+                commander_finance.as_tool(
+                    tool_name="finance",
+                    tool_description=(
+                        "Deploy finance-kit: business case, financial modeling, "
+                        "pricing strategy, commercial pipeline, account management, "
+                        "and investor reporting. Pass the goal plus upstream "
+                        "department outputs as context — evaluates viability and "
+                        "commercial strategy built on upstream work. (🎖️ elite)"
+                    ),
+                )
+            ]
+            if _HAS_FINANCE
             else []
         ),
         agency_inspector.as_tool(
