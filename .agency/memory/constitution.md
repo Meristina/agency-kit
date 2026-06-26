@@ -1,7 +1,7 @@
 # The Agency-Kit Constitution
 
-The supreme doctrine of **agency-kit** — the meta-orchestrator that unifies three autonomous
-departments (product-kit, marketing-kit, solve-kit) under a single CLI and routing layer.
+The supreme doctrine of **agency-kit** — the meta-orchestrator that unifies four optional
+departments (product-kit, marketing-kit, solve-kit, finance-kit) under a single CLI and routing layer.
 
 This Constitution governs **every `agency.*` command**. It sits *above* the meta-orchestrator and
 *below* each department's own internal doctrine: agency-kit commands the departments, but never
@@ -61,6 +61,7 @@ to end:
 - **product-kit** owns discovery, strategy, prioritisation, design, delivery, measurement.
 - **marketing-kit** owns research, positioning, content, campaigns, analytics.
 - **solve-kit** owns problem-solving, root-cause analysis, decision intelligence.
+- **finance-kit** owns business case, financial modelling, pricing, commercial pipeline, closing, reporting.
 
 The Agency **never bypasses, reimplements, or short-circuits a department's internal doctrine,
 quality gates, or units.** It does not "do the product work itself" to save a step. When a domain
@@ -86,11 +87,11 @@ only the Agency's own meta-orchestration units.
 The Agency **classifies before it deploys.** Every mission first passes through routing
 classification that determines which department(s) the mission actually requires.
 
-The Agency does **not** deploy all three departments by reflex. A single-domain mission deploys a
-single department. Deploying marketing-kit and solve-kit for a pure product task wastes budget,
-dilutes focus, and violates this article. Multi-department deployment is justified only when the
-mission genuinely spans multiple domains, and the classification must state *why* each chosen
-department is in scope and *why* the others are not.
+The Agency does **not** deploy all departments by reflex. A single-domain mission deploys a
+single department. Deploying extra kits for a pure product task wastes budget, dilutes focus, and
+violates this article. Multi-department deployment is justified only when the mission genuinely
+spans multiple domains, and the classification must state *why* each chosen department is in scope
+and *why* the others are not.
 
 ## Article VII — Cross-Department Pipelines
 
@@ -103,6 +104,8 @@ The canonical flow is:
 1. **product-kit** output (strategy, design, delivery artefacts) feeds **marketing-kit**.
 2. **product-kit** and **marketing-kit** output both feed **solve-kit** for decision intelligence
    and problem-solving across the combined picture.
+3. **product-kit**, **marketing-kit**, and **solve-kit** output all feed **finance-kit** for
+   economic viability, pricing, commercial pipeline, and investor reporting.
 
 The dossier is passed forward at every hop so no department starts blind, and so downstream work is
 grounded in upstream decisions rather than re-deriving them. The pipeline order may adapt to the

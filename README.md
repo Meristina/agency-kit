@@ -1,6 +1,6 @@
 # Agency-Kit
 
-The **meta-orchestrator** of the AI Agency. Agency-Kit sits one level above the three autonomous departments — `product-kit`, `marketing-kit`, and `solve-kit` — reads a mission goal, and routes it to the right department(s). It runs single-department missions as well as cross-department pipelines (e.g. *product → marketing*) behind a single CLI and a single Python entry point, so you describe the outcome once and the agency figures out who does what, in what order.
+The **meta-orchestrator** of the AI Agency. Agency-Kit sits one level above four optional departments — `product-kit`, `marketing-kit`, `solve-kit`, and `finance-kit` — reads a mission goal, and routes it to the right department(s). It runs single-department missions as well as cross-department pipelines (e.g. *product → marketing → finance*) behind a single CLI and a single Python entry point, so you describe the outcome once and the agency figures out who does what, in what order.
 
 ---
 
@@ -12,6 +12,7 @@ Agency Commander
  ├─ commander_product    🎖️  product-kit    (optional extra)
  ├─ commander_marketing  🎖️  marketing-kit  (optional extra)
  ├─ commander_solve      🎖️  solve-kit      (optional extra)
+ ├─ commander_finance    🎖️  finance-kit    (optional extra)
  └─ inspector_agency     🎖️  cross-department consistency check (veto power)
 ```
 
@@ -24,7 +25,7 @@ Departments are **optional extras**. If a department package is not installed, i
 
 ## Routing
 
-The router reads the goal and returns an **ordered** list of departments (earlier department runs first). It deploys the *minimum* set the goal actually requires — a pricing question is `["product"]`, not all three.
+The router reads the goal and returns an **ordered** list of departments (earlier department runs first). It deploys the *minimum* set the goal actually requires — a pricing question is `["finance"]`, not all four.
 
 ### Single-department
 
@@ -33,6 +34,7 @@ The router reads the goal and returns an **ordered** list of departments (earlie
 | `product` · `feature` · `roadmap` · `jtbd` · `pmf` · `discovery` · `prioritization` | **product** |
 | `campaign` · `content` · `launch` · `positioning` · `seo` · `brand` | **marketing** |
 | `debug` · `architect` · `algorithm` · `implement` · `solve` · `fix` | **solve** |
+| `finance` · `pricing` · `budget` · `roi` · `p&l` · `pipeline` · `commercial` | **finance** |
 
 ### Cross-department pipelines
 
@@ -41,7 +43,9 @@ The router reads the goal and returns an **ordered** list of departments (earlie
 | "launch a product" | **product → marketing** |
 | "build and market" | **product → marketing** |
 | "solve and explain" | **solve → marketing** |
-| "end-to-end" / "full agency" | **product → marketing → solve** |
+| "pitch investors" | **product → finance** |
+| "launch with financial model" | **product → marketing → finance** |
+| "end-to-end" / "full agency" | **product → marketing → solve → finance** |
 
 The router outputs a small JSON object (`{"departments": [...], "rationale": "..."}`). If parsing fails it falls back to a keyword heuristic, and ultimately to `["product"]`.
 
@@ -170,19 +174,20 @@ The mission loop is `CLASSIFY → (optional Direction Check) → EXECUTE → INS
 
 ---
 
-## The three kits
+## The four kits
 
 | Department | Repo | Focus |
 |---|---|---|
 | Product | `product-kit` | Discovery · strategy · prioritisation · design · delivery · measurement |
 | Marketing | `marketing-kit` | Research · positioning · content · campaigns · analytics |
 | Solve | `solve-kit` | Problem-solving · root-cause · architecture · implementation |
+| Finance | `finance-kit` | Business case · pricing · P&L · commercial pipeline · closing · reporting |
 
-Each kit is a complete, standalone agent army (Commander → Officers → Soldiers → Inspector) with its own CLI (`product`, `marketing`, `solve`) and its own constitution.
+Each kit is a complete, standalone agent army (Commander → Officers → Soldiers → Inspector) with its own CLI and its own constitution.
 
 ---
 
-## Why three kits + one orchestrator (not a monorepo)
+## Why four kits + one orchestrator (not a monorepo)
 
 - **Each kit is standalone.** A client installs only the department(s) they need. `product-kit` runs perfectly well with no knowledge that agency-kit exists.
 - **Agency-kit adds cross-department routing without coupling the kits.** Departments are optional extras wired in conditionally; an absent kit disappears from the route rather than breaking the import.

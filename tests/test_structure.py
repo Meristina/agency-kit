@@ -1,7 +1,7 @@
 """Structural invariants for agency-kit — the meta-orchestrator wiring.
 
 Confirms the agency's spine is present and importable under the offline stub (conftest installs
-the `agents` SDK stub and the three department-kit stubs), and that the commander wires the router
+the `agents` SDK stub and the four department-kit stubs), and that the commander wires the router
 and the inspector and guards its optional department imports.
 """
 

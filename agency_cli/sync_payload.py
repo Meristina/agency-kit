@@ -1,15 +1,15 @@
 """sync_payload — regenerate the bundled payload from all source repos.
 
-Pulls from agency-kit (the meta-orchestrator) AND all three department kit repos
-(product-kit, marketing-kit, solve-kit) so that `agency init` installs a complete,
-standalone agency without requiring separate `product init` / `marketing init` /
-`solve init` calls.
+Pulls from agency-kit (the meta-orchestrator) AND all four department kit repos
+(product-kit, marketing-kit, solve-kit, finance-kit) so that `agency init` installs
+a complete, standalone agency without requiring separate per-kit init calls.
 
 Source layout (all repos are expected as siblings of agency-kit):
   agency-kit/     → .agency/, agents/, skills/
   product-kit/    → agents/, skills/
   marketing-kit/  → agents/, skills/
   solve-kit/      → agents/, skills/
+  finance-kit/    → agents/, skills/
 
 Bundle layout (agency_cli/payload/):
   payload/agency/    ← .agency/ (constitution, commands, templates, scripts)

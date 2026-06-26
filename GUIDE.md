@@ -7,7 +7,7 @@
 
 ## 1. What it is
 
-**Agency-Kit** sits one level above the three department kits. It reads a mission goal,
+**Agency-Kit** sits one level above the four department kits. It reads a mission goal,
 classifies which departments to mobilise, runs them in order, combines their outputs
 into a single coherent deliverable, and submits it to a cross-department Inspector with
 veto power.
@@ -31,6 +31,7 @@ Two non-negotiable guarantees:
    ├─ 🎖️ commander_product     product-kit    (optional extra)
    ├─ 🎖️ commander_marketing   marketing-kit  (optional extra)
    ├─ 🎖️ commander_solve       solve-kit      (optional extra)
+   ├─ 🎖️ commander_finance     finance-kit    (optional extra)
    │
    └─ 🎖️ inspector_agency      cross-department quality gate (VETO power)
 ```
@@ -120,7 +121,7 @@ agency-kit/
 ### Phase 1 — EXECUTE (ordered pipeline, context carried forward)
 
 ```
-/agency.product $MISSION  →  /agency.marketing $MISSION  →  /agency.solve $MISSION
+/agency.product $MISSION  →  /agency.marketing $MISSION  →  /agency.solve $MISSION  →  /agency.finance $MISSION
 ```
 
 Each department receives the goal **and all upstream `dept_outputs`**. Marketing
@@ -183,6 +184,7 @@ dept_outputs
   .product     → full product-kit deliverable (or not_installed / not_routed)
   .marketing   → full marketing-kit deliverable
   .solve       → full solve-kit deliverable
+  .finance     → full finance-kit deliverable
 synthesis      → deliverable.md summary (one voice)
 assumptions    → [ASSUMPTION] / confirmed / to verify
 decisions      → per phase — choice + one-line why
@@ -244,7 +246,7 @@ Or step by step for more control:
 ### Install
 
 ```bash
-pip install -e ".[all]"     # agency + product-kit + marketing-kit + solve-kit
+pip install -e ".[all]"     # agency + product-kit + marketing-kit + solve-kit + finance-kit
 export OPENAI_API_KEY=sk-...
 ```
 
@@ -331,7 +333,7 @@ agency init <project> --agent claude  # scaffold into a project
 
 ## 11. Adding a department kit (repeatable pattern)
 
-1. Build the department kit (`product-kit`, `marketing-kit`, `solve-kit`, or a new one).
+1. Build the department kit (`product-kit`, `marketing-kit`, `solve-kit`, `finance-kit`, or a new one).
 2. Expose a `commander_<dept>` importable from the kit.
 3. In `agency_kit/commander.py`, add the guard:
    ```python

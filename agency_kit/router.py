@@ -1,8 +1,8 @@
 """agency-kit — the Agency Router.
 
 A lightweight classification agent. It reads the mission goal and decides which
-department(s) to invoke (product / marketing / solve) and in what order. The
-Agency Commander calls `classify(goal)` once, before any department is deployed,
+department(s) to invoke (product / marketing / solve / finance) and in what order.
+The Agency Commander calls `classify(goal)` once, before any department is deployed,
 and routes the mission according to the returned ordered list.
 
 The router is a STANDARD-tier (fast, cheap) single call. It outputs a small JSON
@@ -66,7 +66,7 @@ disciplines (e.g. "launch", "build and market", "pitch investors", "end-to-end")
 OUTPUT FORMAT
 Output ONLY a single JSON object — no prose, no markdown fences, no preamble:
   {"departments": ["product", "marketing"], "rationale": "<one line>"}
-  - departments: ordered array, subset of ["product", "marketing", "solve"],
+  - departments: ordered array, subset of ["product", "marketing", "solve", "finance"],
     at least one entry, in execution order.
   - rationale: one line explaining the routing decision.
 """

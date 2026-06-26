@@ -2,7 +2,7 @@
 name: router-agency
 description: >-
   Lightweight routing agent. Reads the mission goal and outputs a structured
-  JSON classification: which departments to invoke (product / marketing / solve),
+  JSON classification: which departments to invoke (product / marketing / solve / finance),
   in what order, and a one-line rationale for each. Invoked by the Agency Commander
   before any department is deployed. Model: sonnet (STANDARD), fast single call.
 model: sonnet

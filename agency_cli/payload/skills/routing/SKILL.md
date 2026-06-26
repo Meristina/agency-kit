@@ -2,7 +2,7 @@
 name: routing
 description: >-
   Classify a mission goal into the minimal ordered set of departments to deploy
-  (product / marketing / solve). Used by the agency commander in Phase 0 (Frame)
+  (product / marketing / solve / finance). Used by the agency commander in Phase 0 (Frame)
   via the router_agent, and again whenever the commander must reclassify mid-mission
   after a REDIRECT or a direction-check correction. Not a problem-solving method —
   it is the classification logic the whole agency pipeline depends on.
@@ -16,13 +16,14 @@ focus dissolves. This skill documents the classification logic so the commander 
 apply it confidently — both on the first call via `router_agency` and when reclassifying
 mid-mission after a REDIRECT.
 
-## The three departments
+## The four departments
 
 | Department | Domain | Canonical keywords |
 |---|---|---|
-| **product** | Discovery, strategy, prioritisation, JTBD, PMF, spec, roadmap, delivery, measurement | feature, roadmap, JTBD, PMF, spec, user story, pricing, scope, build, discovery |
+| **product** | Discovery, strategy, prioritisation, JTBD, PMF, spec, roadmap, delivery, measurement | feature, roadmap, JTBD, PMF, spec, user story, scope, build, discovery |
 | **marketing** | Research, positioning, content, campaigns, SEO, brand, launch comms, analytics | campaign, content, copy, positioning, messaging, SEO, brand, launch, go-to-market, ads |
 | **solve** | Problem-solving, root-cause, decision intelligence, architecture, debugging, implementation | debug, fix, bug, root cause, architect, algorithm, implement, refactor, optimise, decide |
+| **finance** | Business case, financial modelling, pricing, P&L, commercial pipeline, closing, reporting | finance, pricing, budget, ROI, P&L, cash flow, pipeline, deal, commercial, investor, business case |
 
 ## Classification rules
 
@@ -48,15 +49,20 @@ Default pipeline order when multiple departments are needed:
    and outcome targets become ground truth for downstream departments.
 2. **marketing** second — takes the product output as the positioning input. It does not
    re-derive the product strategy; it builds on it.
-3. **solve** last — applies decision intelligence to the blockers, trade-offs, or open
+3. **solve** third — applies decision intelligence to the blockers, trade-offs, or open
    decisions the upstream departments surfaced. Or runs standalone if it is the only
    routed department.
+4. **finance** last — evaluates economic viability, pricing, and commercial strategy.
+   Takes product, marketing, and solve outputs as inputs; does not re-derive upstream
+   strategy — it evaluates it financially.
 
 Common multi-domain patterns:
 - "Launch a new product" → `["product", "marketing"]`
 - "Build a feature and write the launch copy" → `["product", "marketing"]`
 - "Debug a problem and explain it to stakeholders" → `["solve", "marketing"]`
-- "End-to-end engagement" / "full agency" → `["product", "marketing", "solve"]`
+- "Launch with a financial model" → `["product", "marketing", "finance"]`
+- "Pitch investors" → `["product", "finance"]`
+- "End-to-end engagement" / "full agency" → `["product", "marketing", "solve", "finance"]`
 
 ### Rule 3 — Classify by dominant intent
 When a goal mixes signals, pick the **dominant intent** — the discipline that owns the
@@ -93,6 +99,7 @@ rationale :
   product  → IN: goal requires scoping the feature and defining the pricing model
   marketing → IN: launch copy and channel plan are explicit deliverables
   solve    → OUT: no debugging, architecture, or decision-intelligence task present
+  finance  → OUT: no financial modelling, pricing, or commercial pipeline task present
 ```
 
 Rationale for **out** departments is as important as rationale for in — it makes the
