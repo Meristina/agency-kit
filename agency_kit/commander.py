@@ -104,7 +104,7 @@ CONSTITUTION CONSTRAINTS (non-negotiable):
 
 PHASE 0 — CLASSIFY (call: classify):
 Call the router with the mission goal. It returns:
-  - route: the ordered subset of {product, marketing, solve} to invoke.
+  - route: the ordered subset of {product, marketing, solve, finance} to invoke.
   - rationale: one line per department on why it is in or out.
 Record both in the dossier (route field). Do not deploy a department the router
 excluded, and do not silently add one it omitted. If you believe the route is
@@ -114,7 +114,7 @@ If the brief is thin, ask at most 2-3 genuinely-unanswered clarifying questions
 (mission type, stage/context, constraints) BEFORE classifying. If it is already
 rich, classify immediately.
 
-PHASE 1 — EXECUTE (calls: product -> marketing -> solve, per route):
+PHASE 1 — EXECUTE (calls: product -> marketing -> solve -> finance, per route):
 Run each routed department in order. Each department's output is fed forward as
 context into the next — a department never starts from the raw goal alone once
 an upstream department has run.
@@ -210,7 +210,7 @@ agency_commander = Agent(
             tool_name="classify",
             tool_description=(
                 "Classify the mission goal: return the ordered subset of "
-                "departments {product, marketing, solve} to invoke, with a "
+                "departments {product, marketing, solve, finance} to invoke, with a "
                 "one-line rationale per department. Call this FIRST, before "
                 "deploying any department."
             ),

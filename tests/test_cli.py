@@ -114,3 +114,86 @@ def test_check_agency_commander_importable_when_installed(tmp_path):
         "agency_kit.commander not found — the find_spec target may have regressed "
         "to a wrong module name (was: 'agency_commander', correct: 'agency_kit.commander')"
     )
+
+
+# ---- agency missions ---------------------------------------------------------
+# Bug surface: _cmd_missions printed nothing when the missions dir was empty;
+# no test existed to guard this code path.
+
+def test_cmd_missions_empty(monkeypatch, capsys):
+    from agency_cli.cli import _cmd_missions
+
+    class _Args:
+        pass
+
+    monkeypatch.setattr("agency_kit.store.list_missions", lambda: [])
+    rc = _cmd_missions(_Args())
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "No missions" in out
+
+
+def test_cmd_missions_lists_rows(monkeypatch, capsys):
+    from agency_cli.cli import _cmd_missions
+
+    class _Args:
+        pass
+
+    fake = [
+        {"mission_id": "20260101-000000-test-goal", "goal": "test goal", "route": ["product"],
+         "iteration": 1, "verdict": "PASS", "delivered": True},
+    ]
+    monkeypatch.setattr("agency_kit.store.list_missions", lambda: fake)
+    rc = _cmd_missions(_Args())
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "test-goal" in out
+    assert "PASS" in out
+
+
+# ---- agency resume ----------------------------------------------------------
+# Bug surface: _cmd_resume called runner_bridge.resume but the error path for a
+# missing mission_id was never tested.
+
+def test_cmd_resume_missing_mission(monkeypatch, capsys):
+    from agency_cli.cli import _cmd_resume
+
+    class _Args:
+        mission_id = "nonexistent-id"
+        path = "."
+        steer = False
+
+    def _raise(*a, **kw):
+        raise FileNotFoundError("not found")
+
+    monkeypatch.setattr("agency_cli.runner_bridge.resume", _raise)
+    rc = _cmd_resume(_Args())
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "nonexistent-id" in err
+
+
+# ---- agency run --parallel --------------------------------------------------
+# Bug surface: --parallel flag was added to the CLI parser but runner_bridge.run
+# was never tested with parallel=True; a typo in the kwarg name would be silent.
+
+def test_cmd_run_parallel_flag(monkeypatch, tmp_path):
+    from agency_cli.cli import _cmd_run
+
+    class _Args:
+        goal = "test parallel goal"
+        path = str(tmp_path)
+        steer = False
+        parallel = True
+
+    calls = {}
+
+    def _fake_run(goal, project_root, steer, parallel):
+        calls["parallel"] = parallel
+        calls["goal"] = goal
+        return tmp_path / "001-result"
+
+    monkeypatch.setattr("agency_cli.runner_bridge.run", _fake_run)
+    rc = _cmd_run(_Args())
+    assert rc == 0
+    assert calls.get("parallel") is True, "--parallel flag not forwarded to runner_bridge.run"
