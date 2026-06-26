@@ -89,10 +89,16 @@ def agency_brief(dossier: dict, required_fixes: list) -> str:
         "its output).",
     ]
     if required_fixes:
+        prev = dossier.get("previous_synthesis", "")
+        if prev:
+            parts.append(
+                "\nPREVIOUS SYNTHESIS (the inspector rejected this — build on it, do NOT discard "
+                "the department work already done; re-enter only the responsible department(s) or "
+                "re-run synthesis to resolve the required fixes below):\n" + prev
+            )
         parts.append(
-            "\nRE-ENTRY — resolve these before re-presenting (carry the dossier forward; re-enter "
-            "only the responsible department or re-run synthesis, do not restart classification "
-            "unless the goal fundamentally changed):\n- "
+            "\nREQUIRED FIXES (resolve every item before re-presenting; do not restart "
+            "classification unless the goal fundamentally changed):\n- "
             + "\n- ".join(required_fixes)
         )
     return "\n".join(parts)
@@ -261,6 +267,9 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         # ── EXECUTE: the agency commander routes, deploys, and synthesises ─
         mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))
         deliverable = mission_result.final_output
+        # Carry the synthesis forward so the next iteration builds on it rather than
+        # re-running all departments from scratch with an empty dossier.
+        dossier["previous_synthesis"] = deliverable
         required_fixes = []
 
         # ── INSPECT: FINAL cross-department audit ──────────────────────────

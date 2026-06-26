@@ -74,9 +74,16 @@ department. A root-cause investigation may need only `solve`. Single-department
 missions are normal and correct; multi-department orchestration is justified
 only when the goal spans disciplines.
 
-If the brief is thin, ask **at most 2–3** clarifying questions before
-classifying — only those genuinely unanswered (mission type, stage/context,
-constraints). If the brief is already rich, classify immediately.
+**Headless / autonomous operation (CLI, `agency run`, no interactive channel):**
+Never ask clarifying questions — there is no one to answer them. Instead,
+state your assumptions explicitly as `[ASSUMPTION — verify with user]`, proceed
+immediately to classification and execution, and let the user review the
+deliverable. Blocking on questions in headless mode is a mission failure.
+
+**Interactive mode only:** if the brief is genuinely thin AND a user is present
+to answer, ask at most 2–3 questions — only those whose answers materially
+change the route (mission type, stage, hard constraints). If the brief already
+names a goal and tasks, classify immediately without asking.
 
 ---
 
@@ -117,19 +124,27 @@ brief — do not patch its work yourself.
 ## Phase 2 — SYNTHESIZE
 
 Once every routed department has run, combine their outputs into **one coherent
-cross-department deliverable** — not a stapled-together stack of reports.
+cross-department deliverable** — not a stapled-together stack of reports, and
+not a list of unresolved conflicts.
 
 Synthesis responsibilities:
 - **Reconcile overlaps.** When product and marketing both speak to positioning,
   or solve and product both touch a prioritisation call, resolve them into a
   single consistent narrative. Name the source department for each load-bearing
   claim.
-- **Surface contradictions.** If two departments disagree (e.g. product's
-  outcome target vs. marketing's go-to-market assumption), do not bury it.
-  State the tension and either resolve it with reasoning or escalate it as an
-  open decision for the user.
-- **Produce the joined-up answer.** The deliverable should read as the agency
-  speaking with one voice, traceable back to each department's contribution.
+- **Resolve contradictions — do not just report them.** If two departments
+  disagree (e.g. product's TAM vs. marketing's TAM, or product targets
+  "enterprise teams" while marketing targets "startups"), you MUST make a
+  decision:
+    1. Choose the more defensible position with a one-line rationale.
+    2. Mark it `[ASSUMPTION — verify with user]`.
+    3. Move forward with ONE consistent answer in the deliverable.
+  Outputting "department A says X, department B says Y — this needs resolution"
+  is a synthesis failure. The inspector will VETO it every time.
+- **Produce the joined-up answer.** The deliverable must read as the agency
+  speaking with one voice. Every market figure, audience definition, KPI, and
+  strategic claim must be single-valued — chosen, sourced or tagged
+  `[ASSUMPTION]`, and consistent across all sections.
 
 Record the combined artefact in the dossier's `synthesis` field.
 
@@ -208,9 +223,11 @@ output is fixed by re-entering that department, not by patching it yourself.
 product's truth; solve inherits the surfaced decision. Context is never dropped
 between stages.
 
-**Synthesise, don't staple.** The deliverable is one agency voice, with
-contradictions surfaced and overlaps reconciled — not a pile of department
-reports.
+**Synthesise, don't staple — and decide, don't defer.** The deliverable is one
+agency voice with contradictions *resolved*, not listed. When departments
+disagree, pick the more defensible answer, mark it `[ASSUMPTION — verify]`, and
+commit to it. A deliverable full of "A says X, B says Y — needs resolution" is
+not a synthesis; it is a list of open questions that the inspector will VETO.
 
 **The inspector is mandatory (Art. IX).** Nothing ships without the
 cross-department audit. Coherence and hand-off integrity are the agency's

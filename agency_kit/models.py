@@ -53,3 +53,19 @@ _load_dotenv()
 
 ELITE = os.getenv("AK_ELITE_MODEL", "gpt-5.5")
 STANDARD = os.getenv("AK_STANDARD_MODEL", "gpt-5.4-mini")
+
+# Apply a hard HTTP timeout so Runner.run_sync never hangs indefinitely.
+# The agents SDK accepts a custom AsyncOpenAI client via set_default_openai_client().
+# AK_HTTP_TIMEOUT controls the limit (default 90 s); set to 0 to disable.
+try:
+    _timeout = float(os.getenv("AK_HTTP_TIMEOUT", "90"))
+    if _timeout > 0:
+        from openai import AsyncOpenAI
+        from agents import set_default_openai_client
+        _client_kwargs = dict(timeout=_timeout)
+        _base_url = os.getenv("OPENAI_BASE_URL")
+        if _base_url:
+            _client_kwargs["base_url"] = _base_url
+        set_default_openai_client(AsyncOpenAI(**_client_kwargs))
+except Exception:
+    pass  # never break on timeout setup — fall back to SDK default

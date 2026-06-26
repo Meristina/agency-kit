@@ -3,6 +3,10 @@
 import argparse
 import sys
 
+# Flush stdout immediately so `agency run` output is visible in real time when
+# stdout is redirected (e.g. piped to a file or captured by a test runner).
+sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
+
 from . import __version__, scaffolder
 
 
