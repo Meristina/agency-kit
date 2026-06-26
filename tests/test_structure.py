@@ -115,3 +115,17 @@ def test_parallel_importable():
 def test_resume_mission_importable():
     from agency_kit.mission import resume_mission
     assert callable(resume_mission)
+
+
+# ---- payload sync drift guard -----------------------------------------------
+# Bug surface: agents/router-agency.md is the single source of truth for routing
+# doctrine, but agency_cli/payload/agents/router-agency.md is a committed mirror.
+# A direct edit to agents/ without running `agency sync` ships divergent doctrine.
+
+def test_payload_router_matches_source():
+    source = ROOT / "agents" / "router-agency.md"
+    mirror = ROOT / "agency_cli" / "payload" / "agents" / "router-agency.md"
+    assert source.read_text(encoding="utf-8") == mirror.read_text(encoding="utf-8"), (
+        "agency_cli/payload/agents/router-agency.md has drifted from agents/router-agency.md — "
+        "run `agency sync` to regenerate the payload."
+    )

@@ -120,15 +120,12 @@ def test_check_agency_commander_importable_when_installed(tmp_path):
 # Bug surface: _cmd_missions printed nothing when the missions dir was empty;
 # no test existed to guard this code path.
 
-class _NoArgs:
-    """Minimal args stub for commands that take no flags."""
-
-
 def test_cmd_missions_empty(monkeypatch, capsys):
     from agency_cli.cli import _cmd_missions
+    from argparse import Namespace
 
     monkeypatch.setattr("agency_kit.store.list_missions", lambda: [])
-    rc = _cmd_missions(_NoArgs())
+    rc = _cmd_missions(Namespace())
     assert rc == 0
     out = capsys.readouterr().out
     assert "No missions" in out
@@ -136,13 +133,14 @@ def test_cmd_missions_empty(monkeypatch, capsys):
 
 def test_cmd_missions_lists_rows(monkeypatch, capsys):
     from agency_cli.cli import _cmd_missions
+    from argparse import Namespace
 
     fake = [
         {"mission_id": "20260101-000000-test-goal", "goal": "test goal", "route": ["product"],
          "iteration": 1, "verdict": "PASS", "delivered": True},
     ]
     monkeypatch.setattr("agency_kit.store.list_missions", lambda: fake)
-    rc = _cmd_missions(_NoArgs())
+    rc = _cmd_missions(Namespace())
     assert rc == 0
     out = capsys.readouterr().out
     assert "test-goal" in out
@@ -155,19 +153,15 @@ def test_cmd_missions_lists_rows(monkeypatch, capsys):
 
 def test_cmd_resume_missing_mission(monkeypatch, capsys):
     from agency_cli.cli import _cmd_resume
-
-    class _Args:
-        mission_id = "nonexistent-id"
-        path = "."
-        steer = False
+    from argparse import Namespace
 
     def _raise(*a, **kw):
         raise FileNotFoundError("not found")
 
     monkeypatch.setattr("agency_cli.runner_bridge.resume", _raise)
-    # Stub missions_dir so the error message doesn't create ~/.agency/missions/ on disk.
-    monkeypatch.setattr("agency_kit.store.missions_dir", lambda: "/stub/missions")
-    rc = _cmd_resume(_Args())
+    # Stub missions_path (no mkdir) so the error message is pure display with no disk side-effect.
+    monkeypatch.setattr("agency_kit.store.missions_path", lambda: Path("/stub/missions"))
+    rc = _cmd_resume(Namespace(mission_id="nonexistent-id", path=".", steer=False))
     assert rc == 2
     err = capsys.readouterr().err
     assert "nonexistent-id" in err
@@ -179,12 +173,7 @@ def test_cmd_resume_missing_mission(monkeypatch, capsys):
 
 def test_cmd_run_parallel_flag(monkeypatch, tmp_path):
     from agency_cli.cli import _cmd_run
-
-    class _Args:
-        goal = "test parallel goal"
-        path = str(tmp_path)
-        steer = False
-        parallel = True
+    from argparse import Namespace
 
     calls = {}
 
@@ -194,6 +183,6 @@ def test_cmd_run_parallel_flag(monkeypatch, tmp_path):
         return tmp_path / "001-result"
 
     monkeypatch.setattr("agency_cli.runner_bridge.run", _fake_run)
-    rc = _cmd_run(_Args())
+    rc = _cmd_run(Namespace(goal="test parallel goal", path=str(tmp_path), steer=False, parallel=True))
     assert rc == 0
     assert calls.get("parallel") is True, "--parallel flag not forwarded to runner_bridge.run"

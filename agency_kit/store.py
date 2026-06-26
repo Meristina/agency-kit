@@ -16,8 +16,13 @@ def _slug(text: str, max_words: int = 5) -> str:
     return "-".join(s.split("-")[:max_words]) or "mission"
 
 
+def missions_path() -> Path:
+    """Return the missions directory path without creating it."""
+    return Path.home() / ".agency" / "missions"
+
+
 def missions_dir() -> Path:
-    d = Path.home() / ".agency" / "missions"
+    d = missions_path()
     d.mkdir(parents=True, exist_ok=True)
     return d
 

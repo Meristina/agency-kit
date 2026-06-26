@@ -94,7 +94,7 @@ Output **only** a single JSON object. No prose, no markdown fences, no preamble.
 Examples:
 
 - Goal: "Add an export-to-CSV button and figure out pricing."
-  `{"departments": ["product"], "rationale": "Feature scope plus pricing — both product concerns."}`
+  `{"departments": ["product", "finance"], "rationale": "Feature scope is product; pricing is finance — hard rule §76: never route pricing to product."}`
 - Goal: "Our checkout throws a 500 on Safari, find and fix it."
   `{"departments": ["solve"], "rationale": "A defect to debug and fix — solve only."}`
 - Goal: "Launch our new analytics product next month."

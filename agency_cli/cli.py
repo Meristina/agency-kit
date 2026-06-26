@@ -59,7 +59,7 @@ def _cmd_resume(args) -> int:
     try:
         out = runner_bridge.resume(args.mission_id, project_root=args.path, steer=args.steer)
     except FileNotFoundError:
-        print(f"error: mission '{args.mission_id}' not found in {store.missions_dir()}",
+        print(f"error: mission '{args.mission_id}' not found in {store.missions_path()}",
               file=sys.stderr)
         return 2
     except ModuleNotFoundError as e:
