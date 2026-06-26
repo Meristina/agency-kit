@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agency-kit"
 version = "0.1.0"
-description = "agency-kit — meta-orchestrator for the AI Agency (product-kit + marketing-kit + solve-kit)"
+description = "agency-kit — meta-orchestrator for the AI Agency (product-kit + marketing-kit + solve-kit + finance-kit)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -15,7 +15,8 @@ dependencies = ["openai-agents>=0.17.0"]
 product = ["product-kit"]
 marketing = ["marketing-kit"]
 solve = ["solve-kit"]
-all = ["product-kit", "marketing-kit", "solve-kit"]
+finance = ["finance-kit"]
+all = ["product-kit", "marketing-kit", "solve-kit", "finance-kit"]
 dev = ["pytest"]
 gemini = ["google-genai"]
 tavily = ["tavily-python>=0.7.0"]

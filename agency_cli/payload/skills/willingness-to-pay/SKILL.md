@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Willingness To Pay — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **willingness-to-pay** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

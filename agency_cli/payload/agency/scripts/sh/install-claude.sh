@@ -19,19 +19,12 @@ done
 PAYLOAD_AGENTS="$ROOT/agency_cli/payload/agents"
 if [ -d "$PAYLOAD_AGENTS" ]; then
   cp "$PAYLOAD_AGENTS"/*.md "$DEST/agents/"
-  AGENT_COUNT=$(ls "$PAYLOAD_AGENTS"/*.md 2>/dev/null | wc -l | tr -d ' ')
 else
   cp "$ROOT"/agents/*.md "$DEST/agents/"
-  AGENT_COUNT=$(ls "$ROOT"/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
 fi
 
-# 3) Skills — full bundle from payload (falls back to root/skills if payload not built yet)
-PAYLOAD_SKILLS="$ROOT/agency_cli/payload/skills"
-if [ -d "$PAYLOAD_SKILLS" ]; then
-  mkdir -p "$DEST/skills"
-  cp -R "$PAYLOAD_SKILLS"/* "$DEST/skills/"
-  SKILL_COUNT=$(ls -d "$PAYLOAD_SKILLS"/*/ 2>/dev/null | wc -l | tr -d ' ')
-elif [ -d "$ROOT/skills" ]; then
+# 3) Skills (optional — only if the skills/ directory exists at root)
+if [ -d "$ROOT/skills" ]; then
   mkdir -p "$DEST/skills"
   cp -R "$ROOT"/skills/* "$DEST/skills/"
   SKILL_COUNT=$(ls -d "$ROOT"/skills/*/ 2>/dev/null | wc -l | tr -d ' ')
@@ -41,6 +34,6 @@ fi
 
 echo "Installed into $DEST :"
 echo "  commands : $(ls "$ROOT"/.agency/commands/*.md | wc -l | tr -d ' ') → /agency.<name>"
-echo "  agents   : ${AGENT_COUNT}"
+echo "  agents   : $(ls "$ROOT"/agents/*.md | wc -l | tr -d ' ')"
 echo "  skills   : ${SKILL_COUNT}"
 echo "Try:  /agency.mission \"<your goal>\""

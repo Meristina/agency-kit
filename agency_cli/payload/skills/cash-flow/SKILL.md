@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Cash Flow — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **cash-flow** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

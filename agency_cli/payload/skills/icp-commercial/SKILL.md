@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Icp Commercial — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **icp-commercial** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

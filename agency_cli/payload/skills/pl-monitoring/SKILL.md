@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Pl Monitoring — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **pl-monitoring** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

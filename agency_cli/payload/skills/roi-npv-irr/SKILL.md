@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Roi Npv Irr — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **roi-npv-irr** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

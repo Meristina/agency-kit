@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Proposal Writing — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **proposal-writing** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

@@ -309,6 +309,7 @@ if __name__ == "__main__":
                 ("product", _HAS_PRODUCT),
                 ("marketing", _HAS_MARKETING),
                 ("solve", _HAS_SOLVE),
+                ("finance", _HAS_FINANCE),
             )
             if present
         ]

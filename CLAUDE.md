@@ -1,7 +1,7 @@
 # agency-kit — Claude Code context
 
 Meta-orchestrator for the AI Agency. Classifies a mission goal and routes it to
-the right department(s): product-kit, marketing-kit, and/or solve-kit — in sequence,
+the right department(s): product-kit, marketing-kit, solve-kit, and/or finance-kit — in sequence,
 feeding each department's output as context into the next. One CLI (`agency`), one
 inspector (`inspector_agency`), one mission loop.
 
@@ -26,7 +26,7 @@ inspector (`inspector_agency`), one mission loop.
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -v          # 25 tests, offline (SDK stubbed in conftest.py)
+pytest tests/ -v          # 27 tests, offline (SDK stubbed in conftest.py)
 ```
 
 ## Environment variables
@@ -45,7 +45,8 @@ OPENAI_API_KEY=...
 pip install -e ".[product]"    # adds commander_product tool to agency_commander
 pip install -e ".[marketing]"  # adds commander_marketing
 pip install -e ".[solve]"      # adds commander_solve
-pip install -e ".[all]"        # all three
+pip install -e ".[finance]"    # adds commander_finance (business case, pricing, pipeline, reporting)
+pip install -e ".[all]"        # all four
 ```
 
 Department imports in `commander.py` are guarded with `try/except ImportError`.
@@ -59,6 +60,6 @@ The constitution is re-read at the start of every `agency.*` command.
 
 ## Test architecture
 
-`tests/conftest.py` stubs both the OpenAI Agents SDK (`agents` module) AND the three
-department kits (`product_kit`, `marketing_kit`, `solve_kit`) so the full suite runs
+`tests/conftest.py` stubs both the OpenAI Agents SDK (`agents` module) AND the four
+department kits (`product_kit`, `marketing_kit`, `solve_kit`, `finance_kit`) so the full suite runs
 offline without any API key.

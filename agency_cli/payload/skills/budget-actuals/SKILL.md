@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Budget Actuals — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **budget-actuals** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

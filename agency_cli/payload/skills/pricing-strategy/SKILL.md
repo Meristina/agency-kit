@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Pricing Strategy — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **pricing-strategy** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

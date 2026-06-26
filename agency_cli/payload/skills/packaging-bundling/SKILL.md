@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Packaging Bundling — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **packaging-bundling** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Competitor Pricing — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **competitor-pricing** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

@@ -11,11 +11,12 @@ useful even with only one kit installed (it degrades gracefully).
 
 ```
 agency_commander (ELITE)
-  ├─ classify          → router_agency     (STANDARD) — which depts, in what order
-  ├─ product           → commander_product (ELITE)    — product-kit [optional]
-  ├─ marketing         → commander_marketing (ELITE)  — marketing-kit [optional]
-  ├─ solve             → commander_solve   (ELITE)    — solve-kit [optional]
-  ├─ inspect           → agency_inspector  (ELITE)    — cross-dept consistency gate
+  ├─ classify          → router_agency      (STANDARD) — which depts, in what order
+  ├─ product           → commander_product  (ELITE)    — product-kit [optional]
+  ├─ marketing         → commander_marketing (ELITE)   — marketing-kit [optional]
+  ├─ solve             → commander_solve    (ELITE)    — solve-kit [optional]
+  ├─ finance           → commander_finance  (ELITE)    — finance-kit [optional]
+  ├─ inspect           → agency_inspector   (ELITE)    — cross-dept consistency gate
   └─ web search tools  → AK_SEARCH backend
 ```
 
@@ -45,10 +46,14 @@ run_mission(goal)
 | product / feature / roadmap / jtbd / pmf / discovery / prioriti | product | 1 |
 | market / campaign / content / launch / position / seo / brand | marketing | 1 |
 | solve / debug / fix / architect / algorithm / technical / implement | solve | 1 |
+| finance / pricing / budget / roi / p&l / pipeline / commercial / deal | finance | 1 |
 | "launch a product" / "go to market" | product → marketing | 1 → 2 |
 | "build and market" / "product launch" | product → marketing | 1 → 2 |
+| "launch with financial model" / "pitch investors" | product → marketing → finance | 1 → 2 → 3 |
 | "solve and communicate" / "fix and explain" | solve → marketing | 1 → 2 |
-| "end-to-end" / "full agency" / all three keywords | product → marketing → solve | 1 → 2 → 3 |
+| "end-to-end" / "full agency" | product → marketing → solve → finance | 1 → 2 → 3 → 4 |
+
+Finance runs AFTER product, marketing, and solve when co-deployed — it evaluates their upstream outputs; it does not re-derive product or marketing strategy.
 
 The router outputs JSON `{"departments": [...], "rationale": "..."}`.
 Keyword fallback in `classify()` handles parse errors gracefully.

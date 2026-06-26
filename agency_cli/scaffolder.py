@@ -22,8 +22,8 @@ def _spec_present(name: str) -> bool:
         return name in sys.modules
 
 # The downstream kits the agency orchestrates; at least one must be installed.
-KITS = ("product_kit", "marketing_kit", "solve_kit")
-KIT_LABELS = {"product_kit": "product-kit", "marketing_kit": "marketing-kit", "solve_kit": "solve-kit"}
+KITS = ("product_kit", "marketing_kit", "solve_kit", "finance_kit")
+KIT_LABELS = {"product_kit": "product-kit", "marketing_kit": "marketing-kit", "solve_kit": "solve-kit", "finance_kit": "finance-kit"}
 
 
 def sources() -> dict:
@@ -60,7 +60,7 @@ def init(target: str, agent: str = "claude") -> dict:
     if not constitution.is_file():
         constitution.write_text(
             "# Agency Constitution\n\n"
-            "The agency is the unified orchestrator for product-kit, marketing-kit, and solve-kit.\n",
+            "The agency is the unified orchestrator for product-kit, marketing-kit, solve-kit, and finance-kit.\n",
             encoding="utf-8",
         )
 
@@ -106,7 +106,7 @@ def check(target: str = ".") -> list:
     # at least one downstream kit installed
     installed, missing = _installed_kits()
     detail = f"installed: {', '.join(installed) or 'none'}; missing: {', '.join(missing) or 'none'}"
-    checks.append(("at least one kit installed (product-kit | marketing-kit | solve-kit)",
+    checks.append(("at least one kit installed (product-kit | marketing-kit | solve-kit | finance-kit)",
                    bool(installed), detail))
 
     # Agents SDK installed

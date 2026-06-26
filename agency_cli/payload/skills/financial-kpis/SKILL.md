@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Financial Kpis — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **financial-kpis** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

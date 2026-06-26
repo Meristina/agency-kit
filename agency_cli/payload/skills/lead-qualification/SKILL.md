@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Lead Qualification — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **lead-qualification** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

@@ -83,5 +83,5 @@ def _stub_department(name: str) -> None:
     sys.modules[f"{name}_kit.commander"] = cmd
 
 
-for _dept in ("product", "marketing", "solve"):
+for _dept in ("product", "marketing", "solve", "finance"):
     _stub_department(_dept)

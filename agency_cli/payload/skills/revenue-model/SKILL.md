@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Revenue Model — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **revenue-model** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 

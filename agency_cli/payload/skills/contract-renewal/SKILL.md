@@ -1,7 +1,7 @@
-# Revops Alignment — méthode
+# Contract Renewal — méthode
 
 ## Objectif
-Appliquer la méthode **revops-alignment** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
+Appliquer la méthode **contract-renewal** pour produire un livrable actionnable, sourcé, calibré sur le contexte.
 
 ## Procédure
 
