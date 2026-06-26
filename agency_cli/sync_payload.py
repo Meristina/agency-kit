@@ -50,12 +50,19 @@ DEPT_KITS = [
 
 
 def _copy_agents(src: Path, dst: Path, dept: str) -> int:
-    """Copy all .md files from src into dst, renaming inspector.md → inspector-<dept>.md."""
+    """Copy all .md files from src into dst, renaming inspector.md → inspector-<dept>.md.
+
+    Warns on filename collisions (other than the handled inspector.md rename) so silent
+    overwrites don't hide agency-level vs dept-level agent conflicts.
+    """
     dst.mkdir(parents=True, exist_ok=True)
     count = 0
     for f in src.glob("*.md"):
         target_name = f"inspector-{dept}.md" if f.name == "inspector.md" else f.name
-        shutil.copy2(f, dst / target_name)
+        target = dst / target_name
+        if target.exists() and target_name != f"inspector-{dept}.md":
+            print(f"  [warn] collision: {target_name} already exists — overwriting with {dept} version")
+        shutil.copy2(f, target)
         count += 1
     return count
 
@@ -67,18 +74,34 @@ def _copy_skills(src: Path, dst: Path) -> int:
     for skill_dir in src.iterdir():
         if skill_dir.is_dir():
             shutil.copytree(skill_dir, dst / skill_dir.name, dirs_exist_ok=True)
-            count += sum(1 for _ in (dst / skill_dir.name).rglob("*") if _.is_file())
+            count += sum(1 for _ in skill_dir.rglob("*") if _.is_file())
     return count
 
 
-def sync() -> dict:
+def sync(allow_missing: bool = False) -> dict:
     root, dest = repo_root(), payload_dir()
     summary = {}
 
-    # 1) .agency/ → payload/agency/
+    # Pre-flight: verify .agency/ exists (always required)
     agency_src = root / ".agency"
     if not agency_src.exists():
         raise RuntimeError(f"Required source dir not found: {agency_src}")
+
+    # Pre-flight: check all dept-kit repos before wiping anything.
+    # Wiping then skipping missing repos would permanently destroy committed agent files.
+    missing_kits = [
+        repo_name for repo_name, _ in DEPT_KITS
+        if not (_dept_root(repo_name) / "agents").exists()
+    ]
+    if missing_kits and not allow_missing:
+        raise RuntimeError(
+            f"Missing sibling repos (not cloned?): {', '.join(missing_kits)}\n"
+            "Clone them alongside agency-kit before running `agency sync`.\n"
+            "To run with only the repos present (keeps committed files for missing kits),\n"
+            "pass allow_missing=True (Python) or run `agency sync --allow-missing` (CLI)."
+        )
+
+    # 1) .agency/ → payload/agency/
     agency_dst = dest / "agency"
     if agency_dst.exists():
         shutil.rmtree(agency_dst)
@@ -94,10 +117,9 @@ def sync() -> dict:
     n_agents = _copy_agents(root / "agents", agents_dst, "agency")
 
     for repo_name, dept in DEPT_KITS:
-        dept_root = _dept_root(repo_name)
-        dept_agents = dept_root / "agents"
+        dept_agents = _dept_root(repo_name) / "agents"
         if not dept_agents.exists():
-            print(f"  [skip] {repo_name}/agents not found — dept kit not present")
+            print(f"  [skip] {repo_name}/agents not found")
             continue
         n_agents += _copy_agents(dept_agents, agents_dst, dept)
 
@@ -114,11 +136,10 @@ def sync() -> dict:
     if agency_skills.exists():
         n_skills += _copy_skills(agency_skills, skills_dst)
 
-    for repo_name, dept in DEPT_KITS:
-        dept_root = _dept_root(repo_name)
-        dept_skills = dept_root / "skills"
+    for repo_name, _ in DEPT_KITS:
+        dept_skills = _dept_root(repo_name) / "skills"
         if not dept_skills.exists():
-            print(f"  [skip] {repo_name}/skills not found — dept kit not present")
+            print(f"  [skip] {repo_name}/skills not found")
             continue
         n_skills += _copy_skills(dept_skills, skills_dst)
 
@@ -127,8 +148,8 @@ def sync() -> dict:
     return summary
 
 
-def main() -> int:
-    s = sync()
+def main(allow_missing: bool = False) -> int:
+    s = sync(allow_missing=allow_missing)
     print(f"Synced payload → {payload_dir()}")
     for k, n in s.items():
         print(f"  {k:<8} {n} files")

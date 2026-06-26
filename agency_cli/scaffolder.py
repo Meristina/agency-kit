@@ -27,17 +27,22 @@ KIT_LABELS = {"product_kit": "product-kit", "marketing_kit": "marketing-kit", "s
 
 
 def sources() -> dict:
-    """Locate the payload source. Keys: agency, commands, agents, skills, mode."""
+    """Locate the payload source. Keys: agency, commands, agents, skills, mode.
+
+    In a source checkout .agency/ is served live from root (so edits take effect without
+    re-running sync), but agents/ and skills/ always come from the bundled payload so the
+    full 100+ agent bundle is installed regardless of which sibling repos are present.
+    """
     here = Path(__file__).resolve()
     root = here.parents[1]
-    if (root / ".agency").is_dir() and (root / "agents").is_dir():
+    payload = here.parent / "payload"
+    if (root / ".agency").is_dir() and (payload / "agents").is_dir():
         return {"agency": root / ".agency", "commands": root / ".agency" / "commands",
-                "agents": root / "agents", "skills": root / "skills", "mode": "source"}
-    p = here.parent / "payload"
-    if (p / "agency").is_dir():
-        return {"agency": p / "agency", "commands": p / "agency" / "commands",
-                "agents": p / "agents", "skills": p / "skills", "mode": "bundled"}
-    raise RuntimeError("Agency-Kit payload not found — run from a source checkout / editable install.")
+                "agents": payload / "agents", "skills": payload / "skills", "mode": "source"}
+    if (payload / "agency").is_dir():
+        return {"agency": payload / "agency", "commands": payload / "agency" / "commands",
+                "agents": payload / "agents", "skills": payload / "skills", "mode": "bundled"}
+    raise RuntimeError("Agency-Kit payload not found — run `agency sync` first, or re-install.")
 
 
 def init(target: str, agent: str = "claude") -> dict:

@@ -146,36 +146,45 @@ def extract_required_fixes(text: str) -> list:
     """Best-effort pull of the required-fix bullet lines from the Inspector output.
 
     Captures two patterns:
-      1. Lines that start with FIX / REQUIRED / BLOCK (keyword-prefixed items).
+      1. Lines that start with FIX: / REQUIRED: / BLOCK: etc. (keyword-prefixed items).
       2. Bullet lines (- / * / •) immediately following a heading that contains
          REQUIRED or BLOCK — handles "Required Fixes (Blocking):" section headers
          whose items are indented bullets on the next lines.
+
+    Key invariant: heading detection must NOT fire on bullet lines whose content happens
+    to contain a keyword (e.g. "- Required Fix: reconcile..." is a fix item, not a heading).
     """
     fixes = []
     lines = (text or "").splitlines()
     in_fixes_section = False
     for line in lines:
         stripped = line.strip()
+        is_bullet = stripped.startswith(("-", "*", "•"))
         content = stripped.lstrip("-*•").strip()
         content_upper = content.upper()
-        # Detect a section heading like "**Required Fixes (Blocking):**"
-        if any(p in content_upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX", "REQUIRED CHANGE")):
+
+        # Detect a section heading — only non-bullet lines trigger a new section.
+        # A bullet line whose content contains "REQUIRED FIX" is a fix item, not a heading.
+        if not is_bullet and any(p in content_upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX", "REQUIRED CHANGE")):
             in_fixes_section = True
             continue
-        # Exit section on next heading only; skip blank lines within the section
-        # (blank line between heading and first bullet must not close the section)
+
+        # Inside a fixes section: collect bullets, exit on the next heading.
         if in_fixes_section:
             if not stripped:
-                continue
+                continue  # blank lines between heading and first bullet are fine
             if stripped.startswith("#") or (stripped.startswith("**") and stripped.endswith("**")):
                 in_fixes_section = False
                 continue
-            # Collect bullets in the section
-            if stripped.startswith(("-", "*", "•")) and content:
+            if is_bullet and content:
                 fixes.append(content)
                 continue
-        # Also capture standalone keyword-prefixed lines anywhere in the text
+
+        # Standalone keyword-prefixed lines anywhere in the text (bullet or not).
         if content and any(content_upper.startswith(p) for p in ("FIX:", "REQUIRED:", "BLOCKING:", "BLOCK:")):
+            fixes.append(content)
+        # Bullet lines that directly name a fix keyword (the pattern the heading check used to eat).
+        elif is_bullet and content and any(p in content_upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX")):
             fixes.append(content)
     return fixes
 
@@ -221,13 +230,13 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
     required_fixes: list = []
     deliverable = ""
 
+    # Classify once up front — re-classify only when the user steers the route.
+    dossier["route"] = classify(goal)
+    print(f"Route: {dossier['route']}")
+
     while dossier["iteration"] < MAX_ITERS:
         dossier["iteration"] += 1
         print(f"\n=== ITERATION {dossier['iteration']}/{MAX_ITERS} ===")
-
-        # ── CLASSIFY: ask the router which departments the mission needs ───
-        dossier["route"] = classify(goal)
-        print(f"Route: {dossier['route']}")
 
         # ── Direction Check (non-blocking; default auto-proceed) ──────────
         dc_pkg = "\n".join([
@@ -249,7 +258,9 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
                 "Direction steer before execution: "
                 + (dc_note or "steer the route / mission framing")
             ]
-            continue  # re-run iteration: re-classify + re-execute with the steer
+            dossier["route"] = classify(goal)  # re-classify after user steer
+            print(f"Re-classified route: {dossier['route']}")
+            continue  # re-execute with the steer
 
         # ── EXECUTE: the agency commander routes, deploys, and synthesises ─
         mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))
@@ -267,12 +278,13 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         verdict = parse_verdict(inspection.final_output)
         required_fixes = extract_required_fixes(inspection.final_output)
         # If the inspector vetoed/flagged but no structured fixes were extracted,
-        # carry the full inspector output so the commander has reasoning on re-entry
-        # rather than repeating the same run blind.
+        # carry the inspector feedback so the commander has reasoning on re-entry.
+        # Cap at 2000 chars to avoid context-window overflow on verbose VETO essays.
         if verdict != "PASS" and not required_fixes:
-            required_fixes = [
-                f"Inspector {verdict} — full feedback:\n{inspection.final_output.strip()}"
-            ]
+            feedback = inspection.final_output.strip()
+            if len(feedback) > 2000:
+                feedback = feedback[:2000] + "\n... [truncated — full output in dossier verdicts]"
+            required_fixes = [f"Inspector {verdict} — feedback:\n{feedback}"]
         dossier["verdicts"].append({
             "iteration": dossier["iteration"],
             "verdict": verdict,

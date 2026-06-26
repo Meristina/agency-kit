@@ -33,7 +33,11 @@ def _cmd_run(args) -> int:
 
 def _cmd_sync(args) -> int:
     from . import sync_payload
-    return sync_payload.main()
+    try:
+        return sync_payload.main(allow_missing=getattr(args, "allow_missing", False))
+    except RuntimeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
 
 
 def _cmd_check(args) -> int:
@@ -76,6 +80,8 @@ def build_parser() -> argparse.ArgumentParser:
     pc.set_defaults(func=_cmd_check)
 
     ps = sub.add_parser("sync", help="regenerate the bundled payload from the repo source")
+    ps.add_argument("--allow-missing", action="store_true",
+                    help="run even if sibling dept-kit repos are absent (keeps their committed files)")
     ps.set_defaults(func=_cmd_sync)
     return p
 

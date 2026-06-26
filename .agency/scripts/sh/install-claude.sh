@@ -14,8 +14,14 @@ for f in "$ROOT"/.agency/commands/*.md; do
   cp "$f" "$DEST/commands/agency.${name}.md"
 done
 
-# 2) The engine the commands drive: agents mirror
-cp "$ROOT"/agents/*.md "$DEST/agents/"
+# 2) The engine the commands drive: full agent bundle from the bundled payload
+# (payload/agents has 100+ files from all kits; root/agents has only 3 agency-level files)
+PAYLOAD_AGENTS="$ROOT/agency_cli/payload/agents"
+if [ -d "$PAYLOAD_AGENTS" ]; then
+  cp "$PAYLOAD_AGENTS"/*.md "$DEST/agents/"
+else
+  cp "$ROOT"/agents/*.md "$DEST/agents/"
+fi
 
 # 3) Skills (optional — only if the skills/ directory exists at root)
 if [ -d "$ROOT/skills" ]; then
