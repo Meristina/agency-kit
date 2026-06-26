@@ -163,16 +163,13 @@ def extract_required_fixes(text: str) -> list:
         content = stripped.lstrip("-*•").strip()
         content_upper = content.upper()
 
-        # Detect a section heading — only non-bullet lines trigger a new section.
-        # A bullet line whose content contains "REQUIRED FIX" is a fix item, not a heading.
         if not is_bullet and any(p in content_upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX", "REQUIRED CHANGE")):
             in_fixes_section = True
             continue
 
-        # Inside a fixes section: collect bullets, exit on the next heading.
         if in_fixes_section:
             if not stripped:
-                continue  # blank lines between heading and first bullet are fine
+                continue  # blank line between heading and first bullet must not close the section
             if stripped.startswith("#") or (stripped.startswith("**") and stripped.endswith("**")):
                 in_fixes_section = False
                 continue
@@ -180,10 +177,9 @@ def extract_required_fixes(text: str) -> list:
                 fixes.append(content)
                 continue
 
-        # Standalone keyword-prefixed lines anywhere in the text (bullet or not).
         if content and any(content_upper.startswith(p) for p in ("FIX:", "REQUIRED:", "BLOCKING:", "BLOCK:")):
             fixes.append(content)
-        # Bullet lines that directly name a fix keyword (the pattern the heading check used to eat).
+        # Bullet lines that directly name a fix keyword (guards the bullet-as-heading misfire).
         elif is_bullet and content and any(p in content_upper for p in ("REQUIRED FIX", "BLOCKING FIX", "MUST FIX")):
             fixes.append(content)
     return fixes
@@ -260,7 +256,7 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
             ]
             dossier["route"] = classify(goal)  # re-classify after user steer
             print(f"Re-classified route: {dossier['route']}")
-            continue  # re-execute with the steer
+            continue
 
         # ── EXECUTE: the agency commander routes, deploys, and synthesises ─
         mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))

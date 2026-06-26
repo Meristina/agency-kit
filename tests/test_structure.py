@@ -59,6 +59,37 @@ def test_commander_wires_router_and_inspector():
     assert "inspect" in tool_names, "inspector not wired into the agency commander tools"
 
 
+# ---- sync_payload pre-flight guard ------------------------------------------
+# Bug: sync() wiped payload/agents/ before checking sibling repos; missing repos
+# caused permanent loss of 100+ committed files with exit 0.
+
+def test_sync_preflight_raises_when_kits_missing(tmp_path):
+    from agency_cli import sync_payload
+
+    # Point repo_root() and payload_dir() at a temp tree that has .agency/ but no sibling kits
+    fake_root = tmp_path / "agency-kit"
+    (fake_root / ".agency" / "memory").mkdir(parents=True)
+    (fake_root / ".agency" / "memory" / "constitution.md").write_text("# Constitution\n")
+    (fake_root / "agents").mkdir()
+    payload = fake_root / "agency_cli" / "payload"
+    payload.mkdir(parents=True)
+
+    import importlib, sys
+    orig_root = sync_payload.repo_root
+    orig_payload = sync_payload.payload_dir
+    sync_payload.repo_root = lambda: fake_root
+    sync_payload.payload_dir = lambda: payload
+    try:
+        import pytest
+        with pytest.raises(RuntimeError, match="Missing sibling repos"):
+            sync_payload.sync(allow_missing=False)
+        # allow_missing=True must not raise (may skip silently)
+        sync_payload.sync(allow_missing=True)
+    finally:
+        sync_payload.repo_root = orig_root
+        sync_payload.payload_dir = orig_payload
+
+
 # ---- optional department imports are guarded by try/except ------------------
 
 def test_optional_kit_imports_guarded():

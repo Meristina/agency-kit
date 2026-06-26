@@ -283,7 +283,8 @@ dossier = run_mission(
 
 ```bash
 agency check                          # prerequisites / health check
-agency sync                           # regenerate agency_cli/payload/ after editing .agency/ or agents/
+agency sync                           # regenerate agency_cli/payload/ (all sibling repos must be cloned)
+agency sync --allow-missing           # sync with only available sibling repos (partial; keeps committed files)
 agency init <project> --agent claude  # scaffold into a project
 ```
 

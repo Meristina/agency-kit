@@ -52,9 +52,9 @@ def _checker(sequence):
 def _stub_classify(monkeypatch, route=("product", "marketing", "solve")):
     """Pin the router so the loop stays offline.
 
-    Each iteration calls ``classify(goal)`` BEFORE the commander; classify runs the router through
-    its own ``Runner`` (not ``mission.Runner``), so we stub it out. The scripted outputs then map
-    one-to-one onto the commander + inspector calls — the calls the contract actually counts.
+    classify(goal) is called once before the while-loop and again only after a DC STEER.
+    It runs the router through its own Runner (not mission.Runner), so we stub it out.
+    The scripted outputs then map one-to-one onto the commander + inspector calls.
     """
     monkeypatch.setattr(mission, "classify", lambda goal: list(route))
 
@@ -87,6 +87,25 @@ def test_required_fixes_extracted():
     assert any("$4B" in f and "$7B" in f for f in fixes), "market-size conflict fix not extracted"
     assert any("North Star" in f for f in fixes), "metric-mismatch fix not extracted"
     assert any("audit log" in f for f in fixes), "handoff-gap fix not extracted"
+
+
+def test_required_fixes_bullet_line_with_keyword_not_eaten_as_heading():
+    # Regression: a bullet line whose content contains "Required Fix" was misclassified as a
+    # section heading, causing the heading-detection guard to set in_fixes_section=True and
+    # `continue` — the fix item was silently dropped. Observed: inspector output like
+    # "- Required Fix: reconcile the $4B vs $7B discrepancy" returned [] from extract.
+    txt = (
+        "Agency audit complete.\n\n"
+        "VERDICT: PASS WITH FIXES\n\n"
+        "- Required Fix: reconcile the $4B vs $7B market-size discrepancy\n"
+        "- Required Fix: align North Star metric with campaign KPI\n"
+    )
+    fixes = mission.extract_required_fixes(txt)
+    assert len(fixes) == 2, (
+        "bullet lines containing 'Required Fix' keyword must be captured as fix items, not headings"
+    )
+    assert any("$4B" in f for f in fixes)
+    assert any("North Star" in f for f in fixes)
 
 
 def test_required_fixes_blank_line_between_heading_and_bullets():

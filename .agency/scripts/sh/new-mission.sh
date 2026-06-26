@@ -29,25 +29,18 @@ SLUG="${SLUG:-mission}"
 DIR="$MISSIONS/${NEXT}-${SLUG}"
 mkdir -p "$DIR"
 
-# seed dossier.md from the template
-# Use Python for substitution — sed delimiters break when GOAL contains | or &
-TPL_DOSSIER="$ROOT/.agency/templates/dossier-template.md"
-python3 - <<'PYEOF' "$TPL_DOSSIER" "${NEXT}-${SLUG}" "$GOAL" "$DIR/dossier.md"
+# Use Python for template substitution — sed delimiters break when GOAL contains | or &
+_fill_template() {
+  python3 - "$1" "$2" "$3" "$4" <<'PYEOF'
 import sys
 tpl, mission_id, goal, out = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 text = open(tpl, encoding="utf-8").read()
 text = text.replace("{{MISSION_ID}}", mission_id).replace("{{ONE_LINE_GOAL}}", goal)
 open(out, "w", encoding="utf-8").write(text)
 PYEOF
+}
 
-# seed deliverable.md from the template
-TPL_DELIVERABLE="$ROOT/.agency/templates/deliverable-template.md"
-python3 - <<'PYEOF' "$TPL_DELIVERABLE" "${NEXT}-${SLUG}" "$GOAL" "$DIR/deliverable.md"
-import sys
-tpl, mission_id, goal, out = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-text = open(tpl, encoding="utf-8").read()
-text = text.replace("{{MISSION_ID}}", mission_id).replace("{{ONE_LINE_GOAL}}", goal)
-open(out, "w", encoding="utf-8").write(text)
-PYEOF
+_fill_template "$ROOT/.agency/templates/dossier-template.md"     "${NEXT}-${SLUG}" "$GOAL" "$DIR/dossier.md"
+_fill_template "$ROOT/.agency/templates/deliverable-template.md"  "${NEXT}-${SLUG}" "$GOAL" "$DIR/deliverable.md"
 
 echo "$DIR"
