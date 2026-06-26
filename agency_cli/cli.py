@@ -31,6 +31,11 @@ def _cmd_run(args) -> int:
     return 0
 
 
+def _cmd_sync(args) -> int:
+    from . import sync_payload
+    return sync_payload.main()
+
+
 def _cmd_check(args) -> int:
     ok_all = True
     for label, ok, detail in scaffolder.check(args.path):
@@ -69,6 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
     pc = sub.add_parser("check", help="prerequisite / health check")
     pc.add_argument("path", nargs="?", default=".")
     pc.set_defaults(func=_cmd_check)
+
+    ps = sub.add_parser("sync", help="regenerate the bundled payload from the repo source")
+    ps.set_defaults(func=_cmd_sync)
     return p
 
 

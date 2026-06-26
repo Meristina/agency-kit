@@ -26,8 +26,15 @@ litellm = ["openai-agents[litellm]"]
 agency = "agency_cli.cli:main"
 agency-kit-mission = "agency_kit.mission:main"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 include = ["agency_kit*", "agency_cli*"]
+
+[tool.setuptools.package-data]
+# Ship the bundled payload so `agency init` works from a wheel.
+agency_cli = ["payload/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
