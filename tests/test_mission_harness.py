@@ -201,3 +201,52 @@ def test_pass_with_fixes_loops(monkeypatch):
     assert "delivered" in d and "residual_risk" not in d
     assert d["verdicts"][0]["verdict"] == "PASS_WITH_FIXES"
     assert d["verdicts"][1]["verdict"] == "PASS"
+
+
+def test_resume_mission(monkeypatch):
+    """resume_mission loads a saved dossier and continues from the last VETO checkpoint."""
+    import agency_kit.store as st
+
+    saved = {
+        "goal": "resume goal",
+        "mission_id": "20260101-000000-resume-goal",
+        "route": ["product"],
+        "context": {"classified_departments": ["product"]},
+        "dept_outputs": {},
+        "decisions": [],
+        "sources": [],
+        "open_to_verify": [],
+        "direction_check": None,
+        "verdicts": [{"iteration": 1, "verdict": "VETO", "required_fixes": ["Fix X"]}],
+        "iteration": 1,
+        "previous_synthesis": "PREV OUTPUT",
+    }
+    monkeypatch.setattr(st, "load", lambda mid: dict(saved))
+    monkeypatch.setattr(st, "save", lambda d: None)
+    _stub_classify(monkeypatch)
+    runner = ScriptedRunner(["OUTPUT2", "VERDICT: PASS"])
+    monkeypatch.setattr(mission, "Runner", runner)
+
+    d = mission.resume_mission("20260101-000000-resume-goal")
+    assert "delivered" in d
+    assert d["verdicts"][-1]["verdict"] == "PASS"
+    assert runner.calls == ["commander_agency", "inspector_agency"]
+
+
+def test_parallel_happy_path(monkeypatch):
+    """Parallel runner: single-dept route (product) → synthesis → inspect → PASS."""
+    from agency_kit import parallel
+    import agency_kit.store as st
+
+    monkeypatch.setattr(st, "save", lambda d: None)
+    monkeypatch.setattr(parallel, "classify", lambda g: ["product"])
+
+    # Calls in order: commander_product (dept), commander_agency (synthesis), inspector_agency
+    runner = ScriptedRunner(["PRODUCT OUT", "SYNTHESIS OUT", "VERDICT: PASS"])
+    monkeypatch.setattr(parallel, "Runner", runner)
+
+    d = parallel.run_parallel_mission("goal")
+    assert "delivered" in d
+    assert d["verdicts"][-1]["verdict"] == "PASS"
+    assert d["dept_outputs"].get("product") == "PRODUCT OUT"
+    assert d["decisions"][0]["execution_mode"] == "parallel"

@@ -94,5 +94,24 @@ def test_sync_preflight_raises_when_kits_missing(tmp_path):
 
 def test_optional_kit_imports_guarded():
     from agency_kit import commander
-    assert hasattr(commander, "_HAS_PRODUCT"), "optional department imports are not guarded (no _HAS_PRODUCT flag)"
-    assert isinstance(commander._HAS_PRODUCT, bool), "_HAS_PRODUCT should be a bool set by the try/except guard"
+    for flag in ("_HAS_PRODUCT", "_HAS_MARKETING", "_HAS_SOLVE", "_HAS_FINANCE"):
+        assert hasattr(commander, flag), f"optional department import not guarded (no {flag} flag)"
+        assert isinstance(getattr(commander, flag), bool), f"{flag} should be a bool set by the try/except guard"
+
+
+def test_store_importable():
+    from agency_kit.store import save, load, list_missions, new_mission_id
+    assert callable(save)
+    assert callable(load)
+    assert callable(list_missions)
+    assert callable(new_mission_id)
+
+
+def test_parallel_importable():
+    from agency_kit.parallel import run_parallel_mission
+    assert callable(run_parallel_mission)
+
+
+def test_resume_mission_importable():
+    from agency_kit.mission import resume_mission
+    assert callable(resume_mission)

@@ -68,14 +68,26 @@ def serialize_dossier(dossier: dict, project_root) -> Path:
     return out
 
 
-def run(goal: str, project_root: str = ".", steer: bool = False) -> Path:
+def run(goal: str, project_root: str = ".", steer: bool = False, parallel: bool = False) -> Path:
     """Headless run: drive the engine, then serialize. Needs openai-agents + a configured provider.
 
-    `steer=False` (default) auto-proceeds through the Direction Check.
-    Pass `steer=True` to open the interactive console Direction Check at the gate.
+    parallel=True runs product+solve concurrently (ThreadPoolExecutor) before marketing/finance.
+    steer=True opens the interactive Direction Check gate before execution.
     """
-    from agency_kit.mission import run_mission, auto_proceed, console_direction_check
-
+    from agency_kit.mission import auto_proceed, console_direction_check
     dc_fn = console_direction_check if steer else auto_proceed
-    dossier = run_mission(goal, dc_fn=dc_fn)
+    if parallel:
+        from agency_kit.parallel import run_parallel_mission
+        dossier = run_parallel_mission(goal, dc_fn=dc_fn)
+    else:
+        from agency_kit.mission import run_mission
+        dossier = run_mission(goal, dc_fn=dc_fn)
+    return serialize_dossier(dossier, Path(project_root))
+
+
+def resume(mission_id: str, project_root: str = ".", steer: bool = False) -> Path:
+    """Resume a saved mission by ID. Loads the dossier and re-enters the loop."""
+    from agency_kit.mission import resume_mission, auto_proceed, console_direction_check
+    dc_fn = console_direction_check if steer else auto_proceed
+    dossier = resume_mission(mission_id, dc_fn=dc_fn)
     return serialize_dossier(dossier, Path(project_root))

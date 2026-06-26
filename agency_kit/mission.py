@@ -219,23 +219,15 @@ def console_direction_check(pkg: str) -> tuple:
 # The mission loop
 # ---------------------------------------------------------------------------
 
-def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
-    """Drive the single-stage cross-department loop. Returns the dossier.
+def _mission_loop(dossier: dict, required_fixes: list, deliverable: str, dc_fn) -> dict:
+    """The core iteration loop — shared by run_mission and resume_mission.
 
-    Each outer iteration: CLASSIFY (router) once, offer ONE optional Direction Check (after
-    classify, before execute), run the agency commander (which internally routes, deploys
-    departments, and synthesises), then run the FINAL agency inspector.
-      DC STEER → add steer note to required_fixes, re-run the iteration (re-classify + re-execute).
-    Inspector VETO / PASS_WITH_FIXES → add required_fixes, loop the iteration.
+    Drives DIRECTION CHECK → EXECUTE (agency commander) → INSPECT (agency inspector)
+    until PASS, VETO cap, or PASS_WITH_FIXES. Auto-saves the dossier to disk after
+    each commander run so a crash or interruption can be resumed.
     """
-    dossier = new_dossier(goal)
-    required_fixes: list = []
-    deliverable = ""
-
-    # Classify once up front — re-classify only when the user steers the route.
-    dossier["route"] = classify(goal)
-    dossier["context"] = {"classified_departments": dossier["route"]}
-    print(f"Route: {dossier['route']}")
+    from . import store
+    goal = dossier["goal"]
 
     while dossier["iteration"] < MAX_ITERS:
         dossier["iteration"] += 1
@@ -259,7 +251,6 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         if dc_choice == "STEER":
             steer_note = dc_note or "steer the route / mission framing"
             required_fixes = [f"Direction steer before execution: {steer_note}"]
-            # Re-classify incorporating the steer note so the router can adjust the route.
             classify_input = f"{goal}\n\nUser steer: {steer_note}"
             dossier["route"] = classify(classify_input)
             dossier["context"] = {"classified_departments": dossier["route"], "steered": True}
@@ -269,8 +260,6 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         # ── EXECUTE: the agency commander routes, deploys, and synthesises ─
         mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))
         deliverable = mission_result.final_output
-        # Carry the synthesis forward so the next iteration builds on it rather than
-        # re-running all departments from scratch with an empty dossier.
         dossier["previous_synthesis"] = deliverable
         dossier["decisions"].append({
             "iteration": dossier["iteration"],
@@ -278,6 +267,7 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
             "direction_check": dossier.get("direction_check", {}).get("choice"),
         })
         required_fixes = []
+        store.save(dossier)  # checkpoint after each commander run
 
         # ── INSPECT: FINAL cross-department audit ──────────────────────────
         inspection = Runner.run_sync(
@@ -289,9 +279,6 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
         )
         verdict = parse_verdict(inspection.final_output)
         required_fixes = extract_required_fixes(inspection.final_output)
-        # If the inspector vetoed/flagged but no structured fixes were extracted,
-        # carry the inspector feedback so the commander has reasoning on re-entry.
-        # Cap at 2000 chars to avoid context-window overflow on verbose VETO essays.
         if verdict != "PASS" and not required_fixes:
             feedback = inspection.final_output.strip()
             if len(feedback) > 2000:
@@ -306,17 +293,49 @@ def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
 
         if verdict == "PASS":
             dossier["delivered"] = deliverable
+            store.save(dossier)
             return dossier
-        # VETO, PASS_WITH_FIXES, or UNCLEAR → loop with required fixes; full re-run.
 
-    # Iteration cap reached: deliver the best result with residual risk stated.
+    # Iteration cap reached: deliver with residual risk.
     dossier["delivered"] = deliverable
     dossier["residual_risk"] = (
         "Iteration cap reached without a clean PASS. Delivered the best cross-department result; "
         f"unresolved required fixes: {required_fixes}; "
         f"open_to_verify: {dossier['open_to_verify']}."
     )
+    store.save(dossier)
     return dossier
+
+
+def run_mission(goal: str, dc_fn=auto_proceed) -> dict:
+    """Drive the single-stage cross-department loop. Returns the dossier."""
+    from . import store
+    dossier = new_dossier(goal)
+    dossier["mission_id"] = store.new_mission_id(goal)
+    dossier["route"] = classify(goal)
+    dossier["context"] = {"classified_departments": dossier["route"]}
+    print(f"Route: {dossier['route']}")
+    return _mission_loop(dossier, [], "", dc_fn)
+
+
+def resume_mission(mission_id: str, dc_fn=auto_proceed) -> dict:
+    """Resume a previously saved mission from its last checkpoint.
+
+    Loads the dossier from ~/.agency/missions/<mission_id>/dossier.json, restores
+    the required_fixes from the last verdict, resets the iteration counter so up to
+    MAX_ITERS additional attempts are made, and re-enters the loop.
+    """
+    from . import store
+    dossier = store.load(mission_id)
+    if dossier.get("delivered"):
+        print(f"Mission {mission_id} already delivered — returning saved dossier.")
+        return dossier
+    verdicts = dossier.get("verdicts") or []
+    required_fixes = verdicts[-1].get("required_fixes", []) if verdicts else []
+    deliverable = dossier.get("previous_synthesis", "")
+    dossier["iteration"] = 0  # fresh cap for the resume attempt
+    print(f"Resuming {mission_id} (route: {dossier.get('route')}, {len(required_fixes)} fix(es))")
+    return _mission_loop(dossier, required_fixes, deliverable, dc_fn)
 
 
 # ---------------------------------------------------------------------------

@@ -26,12 +26,47 @@ def _cmd_init(args) -> int:
 def _cmd_run(args) -> int:
     from . import runner_bridge
     try:
-        out = runner_bridge.run(args.goal, project_root=args.path, steer=args.steer)
+        out = runner_bridge.run(
+            args.goal, project_root=args.path, steer=args.steer,
+            parallel=getattr(args, "parallel", False),
+        )
     except ModuleNotFoundError as e:
         print(f"error: {e}. `agency run` needs the engine SDK: pip install openai-agents",
               file=sys.stderr)
         return 2
     print(f"Mission written to: {out}")
+    return 0
+
+
+def _cmd_missions(args) -> int:
+    from agency_kit import store
+    missions = store.list_missions()
+    if not missions:
+        print("No missions saved yet. Run:  agency run \"<your goal>\"")
+        return 0
+    print(f"{'MISSION ID':<38}  {'VERDICT':<15}  GOAL")
+    print("-" * 90)
+    for m in missions:
+        tick = "✓" if m["delivered"] else "○"
+        goal_preview = m["goal"][:42] + "…" if len(m["goal"]) > 42 else m["goal"]
+        print(f"{m['mission_id']:<38}  {m['verdict']:<15}  {tick} {goal_preview}")
+    return 0
+
+
+def _cmd_resume(args) -> int:
+    from agency_kit import store
+    from . import runner_bridge
+    try:
+        out = runner_bridge.resume(args.mission_id, project_root=args.path, steer=args.steer)
+    except FileNotFoundError:
+        print(f"error: mission '{args.mission_id}' not found in {store.missions_dir()}",
+              file=sys.stderr)
+        return 2
+    except ModuleNotFoundError as e:
+        print(f"error: {e}. `agency resume` needs the engine SDK: pip install openai-agents",
+              file=sys.stderr)
+        return 2
+    print(f"Mission resumed and written to: {out}")
     return 0
 
 
@@ -61,7 +96,7 @@ def _harness_choices():
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agency",
-        description="AI Agency — unified orchestrator for product-kit, marketing-kit, and solve-kit",
+        description="AI Agency — unified orchestrator for product-kit, marketing-kit, solve-kit, and finance-kit",
     )
     p.add_argument("--version", action="version", version=f"agency-kit {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -77,7 +112,18 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("path", nargs="?", default=".", help="project dir for missions/ output")
     pr.add_argument("--steer", action="store_true",
                     help="open the interactive Direction Check (otherwise auto-proceeds)")
+    pr.add_argument("--parallel", action="store_true",
+                    help="run product+solve concurrently, then marketing, then finance")
     pr.set_defaults(func=_cmd_run)
+
+    pm = sub.add_parser("missions", help="list saved missions from ~/.agency/missions/")
+    pm.set_defaults(func=_cmd_missions)
+
+    pre = sub.add_parser("resume", help="resume a previously saved mission by ID")
+    pre.add_argument("mission_id", help="mission ID shown by `agency missions`")
+    pre.add_argument("path", nargs="?", default=".", help="project dir for missions/ output")
+    pre.add_argument("--steer", action="store_true")
+    pre.set_defaults(func=_cmd_resume)
 
     pc = sub.add_parser("check", help="prerequisite / health check")
     pc.add_argument("path", nargs="?", default=".")
