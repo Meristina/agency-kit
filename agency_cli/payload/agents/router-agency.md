@@ -100,7 +100,7 @@ Examples:
 - Goal: "Launch our new analytics product next month."
   `{"departments": ["product", "marketing"], "rationale": "Define the product, then market the launch."}`
 - Goal: "Run an end-to-end engagement for the new mobile app."
-  `{"departments": ["product", "marketing", "solve"], "rationale": "End-to-end spans product, marketing, and solve for this technical mobile app."}`
+  `{"departments": ["product", "marketing", "solve", "finance"], "rationale": "End-to-end spans all four departments: product defines, marketing positions, solve architects, finance validates viability."}`
 - Goal: "Pitch our SaaS to investors — what's the business case and what's our go-to-market?"
   `{"departments": ["product", "marketing", "finance"], "rationale": "Product defines what we build, marketing defines positioning, finance builds the business case and pitch."}`
 - Goal: "Model our P&L for the next 3 years and build a sales pipeline."

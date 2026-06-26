@@ -120,14 +120,15 @@ def test_check_agency_commander_importable_when_installed(tmp_path):
 # Bug surface: _cmd_missions printed nothing when the missions dir was empty;
 # no test existed to guard this code path.
 
+class _NoArgs:
+    """Minimal args stub for commands that take no flags."""
+
+
 def test_cmd_missions_empty(monkeypatch, capsys):
     from agency_cli.cli import _cmd_missions
 
-    class _Args:
-        pass
-
     monkeypatch.setattr("agency_kit.store.list_missions", lambda: [])
-    rc = _cmd_missions(_Args())
+    rc = _cmd_missions(_NoArgs())
     assert rc == 0
     out = capsys.readouterr().out
     assert "No missions" in out
@@ -136,15 +137,12 @@ def test_cmd_missions_empty(monkeypatch, capsys):
 def test_cmd_missions_lists_rows(monkeypatch, capsys):
     from agency_cli.cli import _cmd_missions
 
-    class _Args:
-        pass
-
     fake = [
         {"mission_id": "20260101-000000-test-goal", "goal": "test goal", "route": ["product"],
          "iteration": 1, "verdict": "PASS", "delivered": True},
     ]
     monkeypatch.setattr("agency_kit.store.list_missions", lambda: fake)
-    rc = _cmd_missions(_Args())
+    rc = _cmd_missions(_NoArgs())
     assert rc == 0
     out = capsys.readouterr().out
     assert "test-goal" in out
@@ -167,6 +165,8 @@ def test_cmd_resume_missing_mission(monkeypatch, capsys):
         raise FileNotFoundError("not found")
 
     monkeypatch.setattr("agency_cli.runner_bridge.resume", _raise)
+    # Stub missions_dir so the error message doesn't create ~/.agency/missions/ on disk.
+    monkeypatch.setattr("agency_kit.store.missions_dir", lambda: "/stub/missions")
     rc = _cmd_resume(_Args())
     assert rc == 2
     err = capsys.readouterr().err
