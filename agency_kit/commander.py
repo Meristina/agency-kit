@@ -433,14 +433,18 @@ agency_commander = Agent(
 
 
 # Exported for CLI --dry-run: maps dept name → True if the kit is installed.
-# Built from DEPT_NAMES so order and keys are always in sync with departments.py.
+# Explicit dict so adding a department to DEPT_NAMES without updating this dict
+# raises a KeyError rather than silently truncating via zip().
 DEPT_INSTALLED: dict = {
-    name: installed
-    for name, installed in zip(
-        DEPT_NAMES,
-        (_HAS_PRODUCT, _HAS_MARKETING, _HAS_SOLVE, _HAS_FINANCE,
-         _HAS_COMMS, _HAS_DATA, _HAS_OPS, _HAS_PEOPLE, _HAS_TECH),
-    )
+    "product":   _HAS_PRODUCT,
+    "marketing": _HAS_MARKETING,
+    "solve":     _HAS_SOLVE,
+    "finance":   _HAS_FINANCE,
+    "comms":     _HAS_COMMS,
+    "data":      _HAS_DATA,
+    "ops":       _HAS_OPS,
+    "people":    _HAS_PEOPLE,
+    "tech":      _HAS_TECH,
 }
 
 

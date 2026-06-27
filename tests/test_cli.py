@@ -263,7 +263,7 @@ def test_cmd_dry_run_shows_route(capsys, monkeypatch):
     from agency_cli.cli import _cmd_run
     from argparse import Namespace
 
-    monkeypatch.setattr("agency_kit.router._keyword_classify", lambda goal: ["product", "marketing"])
+    monkeypatch.setattr("agency_kit.router.keyword_classify", lambda goal: ["product", "marketing"])
     monkeypatch.setattr("agency_kit.commander.DEPT_INSTALLED", {"product": True, "marketing": False})
 
     rc = _cmd_run(Namespace(goal="launch our product", path=".", steer=False, parallel=False, dry_run=True))
@@ -279,7 +279,7 @@ def test_cmd_dry_run_missing_dept_install_hint(capsys, monkeypatch):
     from agency_cli.cli import _cmd_run
     from argparse import Namespace
 
-    monkeypatch.setattr("agency_kit.router._keyword_classify", lambda goal: ["data", "tech"])
+    monkeypatch.setattr("agency_kit.router.keyword_classify", lambda goal: ["data", "tech"])
     monkeypatch.setattr("agency_kit.commander.DEPT_INSTALLED", {"data": False, "tech": False})
 
     rc = _cmd_run(Namespace(goal="build data pipeline", path=".", steer=False, parallel=False, dry_run=True))

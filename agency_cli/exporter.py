@@ -26,19 +26,13 @@ def export_pdf(mission_id: str) -> Path:
     except ImportError:
         raise ImportError('Markdown not installed. Run:  pip install -e ".[pdf]"')
 
-    from agency_kit.store import missions_dir
+    from agency_kit.store import missions_dir, strip_frontmatter
 
     md_path = missions_dir() / mission_id / "deliverable.md"
     if not md_path.exists():
         raise FileNotFoundError(f"deliverable.md not found for mission: {mission_id}")
 
-    content = md_path.read_text(encoding="utf-8")
-
-    # Strip YAML front-matter written by store.save()
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            content = parts[2].strip()
+    content = strip_frontmatter(md_path.read_text(encoding="utf-8"))
 
     html_body = _md.markdown(content, extensions=["tables", "fenced_code"])
     html = _wrap_html(html_body)
@@ -50,7 +44,7 @@ def export_pdf(mission_id: str) -> Path:
 
 def _wrap_html(body: str) -> str:
     return f"""<!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <style>

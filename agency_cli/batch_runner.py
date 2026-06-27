@@ -14,14 +14,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from agency_kit.store import agency_dir as _agency_dir
+
 _QUEUE_COLS = ["id", "goal", "priority", "status", "notes"]
 _STATE_COLS = ["id", "status", "started_at", "finished_at", "last_verdict", "retries", "mission_id"]
-
-
-def _agency_dir() -> Path:
-    d = Path.home() / ".agency"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
 
 
 def _queue_path() -> Path:
@@ -72,6 +68,7 @@ def _write_state(state: dict) -> None:
                 _release_lock()
             return
         time.sleep(0.05)
+    print("[batch] warning: could not acquire state lock — job state not written", file=sys.stderr)
 
 
 def _next_id(rows: list) -> int:

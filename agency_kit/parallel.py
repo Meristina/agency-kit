@@ -1,14 +1,18 @@
 """Parallel mission runner — runs independent departments concurrently.
 
-Dependency order:
-  Stage 1 (parallel):   product, solve       — independent; run with ThreadPoolExecutor
-  Stage 2 (sequential): marketing            — uses product output as context
-  Stage 3 (sequential): finance              — uses all upstream output as context
-  Stage 4 (sequential): comms               — uses product + marketing output as context
-  Stage 5 (sequential): data                — uses all upstream output as context
-  Stage 6 (sequential): ops                 — uses all upstream output as context
-  Stage 7 (sequential): people              — uses all upstream output as context
-  Stage 8 (sequential): tech                — uses all upstream output as context
+Dependency order (9 stages):
+  Stage 1 (parallel):   product              — independent; entry point for product strategy
+  Stage 2 (parallel):   solve                — independent; runs concurrently with product
+  Stage 3 (sequential): marketing            — uses product output as context
+  Stage 4 (sequential): finance              — uses all upstream output as context
+  Stage 5 (sequential): comms               — uses product + marketing output as context
+  Stage 6 (sequential): data                — uses all upstream output as context
+  Stage 7 (sequential): ops                 — uses all upstream output as context
+  Stage 8 (sequential): people              — uses all upstream output as context
+  Stage 9 (sequential): tech                — uses all upstream output as context
+
+Stages 1 and 2 (product + solve) form the _PARALLEL_GROUP and are submitted to a
+ThreadPoolExecutor when both are in the route. All other stages are sequential.
 
 The agency commander is used only for SYNTHESIS (combining dept outputs into one
 cross-department deliverable) and the agency inspector for the final audit.
@@ -19,17 +23,14 @@ Usage:
   dossier = run_parallel_mission("pitch investors and build a go-to-market plan")
 """
 
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from agents import Runner
 
 from .mission import (
-    new_dossier, parse_verdict, extract_required_fixes, auto_proceed, MAX_ITERS,
-    _is_quota_error,
+    new_dossier, auto_proceed, _is_quota_error, _mission_loop,
 )
 from .commander import agency_commander
-from .inspector import agency_inspector
 from .router import classify
 from . import store
 
@@ -91,11 +92,11 @@ def _run_dept(commander, prompt: str) -> str:
 
 
 def _execute_departments(route: list, goal: str) -> dict:
-    """Stage 1: parallel (product+solve); Stage 2+: sequential in router's returned order."""
+    """Stages 1–2: parallel (product+solve); Stages 3–9: sequential in router's returned order."""
     commanders = _get_commanders()
     dept_outputs = {}
 
-    # Stage 1 — parallel group
+    # Stages 1–2 — parallel group
     parallel = [d for d in route if d in _PARALLEL_GROUP and commanders[d][1] and commanders[d][0]]
     if len(parallel) > 1:
         print(f"  [parallel] launching: {', '.join(parallel)}")
@@ -108,20 +109,18 @@ def _execute_departments(route: list, goal: str) -> dict:
                 dept = futures[fut]
                 try:
                     dept_outputs[dept] = fut.result()
-                except Exception as exc:
-                    if _is_quota_error(exc):
-                        raise  # caught in run_parallel_mission
-                    raise
+                except Exception:
+                    raise  # quota errors caught by the execute_fn wrapper in _mission_loop
                 print(f"  [parallel] {dept} done ({len(dept_outputs[dept])} chars)")
     elif parallel:
         dept = parallel[0]
         dept_outputs[dept] = _run_dept(commanders[dept][0], _dept_brief(dept, goal, {}))
         print(f"  [sequential] {dept} done")
 
-    # Stage 2+ — sequential, preserving the router's returned order
+    # Stages 3–9 — sequential, preserving the router's returned order
     for dept in route:
         if dept in _PARALLEL_GROUP:
-            continue  # already ran in stage 1
+            continue  # already ran in stages 1–2
         cmd, has = commanders[dept]
         if not has or not cmd:
             print(f"  [skip] {dept} not installed")
@@ -137,8 +136,11 @@ def run_parallel_mission(goal: str, dc_fn=auto_proceed) -> dict:
     """Drive the parallel cross-department loop. Returns the dossier.
 
     Same control-flow as run_mission (Direction Check → Execute → Inspect → loop)
-    but runs product+solve concurrently before the sequential tail (marketing → finance →
-    comms → data → ops → people → tech).
+    but runs product+solve concurrently (stages 1–2) before the sequential tail
+    (marketing → finance → comms → data → ops → people → tech, stages 3–9).
+
+    The outer loop (DC, quota-pause, verdict dispatch, iteration cap) is provided by
+    _mission_loop from mission.py; this function supplies the parallel execute_fn.
     """
     dossier = new_dossier(goal)
     dossier["mission_id"] = store.new_mission_id(goal)
@@ -149,115 +151,22 @@ def run_parallel_mission(goal: str, dc_fn=auto_proceed) -> dict:
     }
     print(f"Route (parallel mode): {dossier['route']}")
 
-    required_fixes: list = []
-    deliverable = ""
-
-    while dossier["iteration"] < MAX_ITERS:
-        dossier["iteration"] += 1
-        print(f"\n=== ITERATION {dossier['iteration']}/{MAX_ITERS} [parallel] ===")
-
-        # Direction Check
-        dc_pkg = "\n".join([
-            "ROUTE:", json.dumps(dossier["route"], ensure_ascii=False),
-            "\nGOAL:", goal,
-        ])
-        dc_choice, dc_note = dc_fn(dc_pkg)
-        dossier["direction_check"] = {
-            "iteration": dossier["iteration"],
-            "choice": dc_choice,
-            "note": dc_note,
-        }
-        print(f"Direction check: {dc_choice}" + (f" — {dc_note}" if dc_note else ""))
-
-        if dc_choice == "STEER":
-            steer_note = dc_note or "steer the route"
-            required_fixes = [f"Direction steer: {steer_note}"]
-            dossier["route"] = classify(f"{goal}\n\nUser steer: {steer_note}")
-            dossier["context"]["classified_departments"] = dossier["route"]
-            dossier["context"]["steered"] = True
-            print(f"Re-classified route: {dossier['route']}")
-            continue
-
-        # Execute — parallel stage 1, sequential stage 2+
-        try:
-            dept_outputs = _execute_departments(dossier["route"], goal)
-        except Exception as exc:
-            if _is_quota_error(exc):
-                dossier["status"] = "paused_rate_limit"
-                dossier["paused_reason"] = str(exc)
-                store.save(dossier)
-                print(f"\n[quota] Session limit reached during department execution — mission saved.")
-                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
-                return dossier
-            raise
-        dossier["dept_outputs"].update(dept_outputs)
-
-        # Synthesis via agency commander (combining role only, not orchestration)
-        try:
-            synthesis_result = Runner.run_sync(
-                agency_commander, _synthesis_brief(dossier, dept_outputs, required_fixes)
-            )
-        except Exception as exc:
-            if _is_quota_error(exc):
-                dossier["status"] = "paused_rate_limit"
-                dossier["paused_reason"] = str(exc)
-                store.save(dossier)
-                print(f"\n[quota] Session limit reached during synthesis — mission paused and saved.")
-                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
-                return dossier
-            raise
+    def execute_fn(dos, req_fixes):
+        dept_outputs = _execute_departments(dos["route"], dos["goal"])
+        dos["dept_outputs"].update(dept_outputs)
+        synthesis_result = Runner.run_sync(
+            agency_commander, _synthesis_brief(dos, dept_outputs, req_fixes)
+        )
         deliverable = synthesis_result.final_output
-        dossier["previous_synthesis"] = deliverable
-        dossier["decisions"].append({
-            "iteration": dossier["iteration"],
-            "route_executed": list(dossier["route"]),
+        dos["previous_synthesis"] = deliverable
+        dos["decisions"].append({
+            "iteration": dos["iteration"],
+            "route_executed": list(dos["route"]),
             "departments_run": list(dept_outputs.keys()),
             "execution_mode": "parallel",
         })
-        required_fixes = []
-        store.save(dossier)
+        return deliverable
 
-        # Inspect
-        try:
-            inspection = Runner.run_sync(
-                agency_inspector,
-                "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
-                "(sources / ethics & compliance / cross-department consistency) and end with a clear "
-                "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
-                "lines, each naming the departments involved:\n\n" + deliverable,
-            )
-        except Exception as exc:
-            if _is_quota_error(exc):
-                dossier["status"] = "paused_rate_limit"
-                dossier["paused_reason"] = str(exc)
-                store.save(dossier)
-                print(f"\n[quota] Session limit reached during inspect — mission saved.")
-                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
-                return dossier
-            raise
-        verdict = parse_verdict(inspection.final_output)
-        required_fixes = extract_required_fixes(inspection.final_output)
-        if verdict != "PASS" and not required_fixes:
-            feedback = inspection.final_output.strip()
-            if len(feedback) > 2000:
-                feedback = feedback[:2000] + "\n... [truncated]"
-            required_fixes = [f"Inspector {verdict} — feedback:\n{feedback}"]
-        dossier["verdicts"].append({
-            "iteration": dossier["iteration"],
-            "verdict": verdict,
-            "required_fixes": required_fixes,
-        })
-        print(f"Inspector verdict: {verdict}  ({len(required_fixes)} fix(es))")
-
-        if verdict == "PASS":
-            dossier["delivered"] = deliverable
-            store.save(dossier)
-            return dossier
-
-    dossier["delivered"] = deliverable
-    dossier["residual_risk"] = (
-        f"Iteration cap reached. Unresolved fixes: {required_fixes}; "
-        f"open_to_verify: {dossier['open_to_verify']}."
-    )
-    store.save(dossier)
-    return dossier
+    # Pass parallel.Runner explicitly so monkeypatching parallel.Runner in tests
+    # correctly intercepts both the execute and the inspect call inside _mission_loop.
+    return _mission_loop(dossier, [], "", dc_fn, execute_fn=execute_fn, _runner=Runner)

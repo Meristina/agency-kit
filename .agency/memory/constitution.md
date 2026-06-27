@@ -80,7 +80,7 @@ them — not to override how a department works inside its own walls.
 Every deployed unit runs at one of two grades, mapped to configurable models:
 
 - **AK_ELITE_MODEL** — elite tier (🎖️) for routing classification, cross-department synthesis,
-  strategy, and the Inspector. Default: `claude-opus-4-8` (OpenAI default: `gpt-4.1`).
+  strategy, and the Inspector. Default: `claude-opus-4-8` (OpenAI default: `gpt-4o`).
 - **AK_STANDARD_MODEL** — standard tier (🔵) for structured, well-scoped sub-tasks.
   Default: `claude-sonnet-4-6` (OpenAI default: `gpt-4o-mini`).
 

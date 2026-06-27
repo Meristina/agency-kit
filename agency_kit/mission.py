@@ -127,7 +127,6 @@ def parse_verdict(text: str) -> str:
     Fall back to the LAST occurrence of a verdict keyword in the text (the Inspector's conclusion
     is always at the end, not the top). Order of severity: VETO > PASS_WITH_FIXES > PASS.
     """
-    import re
     upper = (text or "").upper()
 
     # 1. Explicit verdict lines — highest priority
@@ -227,18 +226,62 @@ def console_direction_check(pkg: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------
+# Inspection prompt — shared constant used by _mission_loop and (via import)
+# by any alternate runner (e.g. parallel.py) so the text stays in sync.
+# ---------------------------------------------------------------------------
+
+_FINAL_INSPECT_PREFIX = (
+    "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
+    "(sources / ethics & compliance / cross-department consistency) and end with a clear "
+    "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
+    "lines, each naming the departments involved:\n\n"
+)
+
+
+# ---------------------------------------------------------------------------
 # The mission loop
 # ---------------------------------------------------------------------------
 
-def _mission_loop(dossier: dict, required_fixes: list, deliverable: str, dc_fn) -> dict:
-    """The core iteration loop — shared by run_mission and resume_mission.
+def _mission_loop(
+    dossier: dict,
+    required_fixes: list,
+    deliverable: str,
+    dc_fn,
+    execute_fn=None,
+    _runner=None,
+) -> dict:
+    """The core iteration loop — shared by run_mission, resume_mission, and run_parallel_mission.
 
-    Drives DIRECTION CHECK → EXECUTE (agency commander) → INSPECT (agency inspector)
-    until PASS, VETO cap, or PASS_WITH_FIXES. Auto-saves the dossier to disk after
-    each commander run so a crash or interruption can be resumed.
+    Drives DIRECTION CHECK → EXECUTE → INSPECT until PASS, VETO cap, or PASS_WITH_FIXES.
+    Auto-saves the dossier to disk after each execute run.
+
+    execute_fn: Callable[[dict, list], str]
+        Takes (dossier, required_fixes) and returns the deliverable string.
+        Must also update dossier['previous_synthesis'] and dossier['decisions'] in-place.
+        When None, defaults to a single agency-commander call (the standard mission path).
+
+    _runner: the Runner object to use for the inspect call.
+        Defaults to the module-level Runner.  Pass the caller's module-level Runner
+        so that monkeypatching in tests (`monkeypatch.setattr(module, 'Runner', stub)`)
+        correctly intercepts both the execute and inspect calls.
     """
     from . import store
     goal = dossier["goal"]
+
+    if _runner is None:
+        _runner = Runner
+
+    if execute_fn is None:
+        def execute_fn(dos, req_fixes):
+            result = _runner.run_sync(agency_commander, agency_brief(dos, req_fixes))
+            del_text = result.final_output
+            dos["previous_synthesis"] = del_text
+            dos["decisions"].append({
+                "iteration": dos["iteration"],
+                "route_executed": list(dos["route"]),
+                "direction_check": dos.get("direction_check", {}).get("choice"),
+            })
+            return del_text
 
     while dossier["iteration"] < MAX_ITERS:
         dossier["iteration"] += 1
@@ -268,9 +311,9 @@ def _mission_loop(dossier: dict, required_fixes: list, deliverable: str, dc_fn) 
             print(f"Re-classified route: {dossier['route']}")
             continue
 
-        # ── EXECUTE: the agency commander routes, deploys, and synthesises ─
+        # ── EXECUTE ───────────────────────────────────────────────────────
         try:
-            mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))
+            deliverable = execute_fn(dossier, required_fixes)
         except Exception as exc:
             if _is_quota_error(exc):
                 dossier["status"] = "paused_rate_limit"
@@ -280,24 +323,14 @@ def _mission_loop(dossier: dict, required_fixes: list, deliverable: str, dc_fn) 
                 print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
                 return dossier
             raise
-        deliverable = mission_result.final_output
-        dossier["previous_synthesis"] = deliverable
-        dossier["decisions"].append({
-            "iteration": dossier["iteration"],
-            "route_executed": list(dossier["route"]),
-            "direction_check": dossier.get("direction_check", {}).get("choice"),
-        })
         required_fixes = []
-        store.save(dossier)  # checkpoint after each commander run
+        store.save(dossier)  # checkpoint after each execute run
 
         # ── INSPECT: FINAL cross-department audit ──────────────────────────
         try:
-            inspection = Runner.run_sync(
+            inspection = _runner.run_sync(
                 agency_inspector,
-                "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
-                "(sources / ethics & compliance / cross-department consistency) and end with a clear "
-                "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
-                "lines, each naming the departments involved:\n\n" + deliverable,
+                _FINAL_INSPECT_PREFIX + deliverable,
             )
         except Exception as exc:
             if _is_quota_error(exc):

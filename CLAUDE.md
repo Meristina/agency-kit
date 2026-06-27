@@ -92,7 +92,7 @@ except ImportError:
 
 ### Single source of truth for department names
 
-`agency_kit/departments.py` exports `DEPT_NAMES` (ordered list), `VALID_DEPTS` (frozenset), and `dept_list_text()`. The router, commander, inspector, and CLI all import from here. Adding a department means updating only this file + the try/except block in `commander.py`.
+`agency_kit/departments.py` exports `DEPT_NAMES` (ordered tuple), `VALID_DEPTS` (frozenset), and `dept_list_text()`. The router, commander, inspector, and CLI all import from here. Adding a department means updating only this file + the try/except block in `commander.py`.
 
 ### Payload (`agency_cli/payload/`)
 

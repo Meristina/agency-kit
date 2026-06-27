@@ -29,6 +29,7 @@ class Agent:
         self.name = k.get("name")
         self.model = k.get("model")
         self.tools = k.get("tools", [])
+        self.instructions = k.get("instructions", "")
 
     def as_tool(self, *a, **k):
         return {"tool_name": k.get("tool_name")}
@@ -78,6 +79,11 @@ def _stub_department(name: str) -> None:
 
     cmd = types.ModuleType(f"{name}_kit.commander")
     setattr(cmd, commander_attr, commander_agent)
+    # Also expose as 'commander' — matches the real marketing-kit/solve-kit interface
+    # where the attribute is named 'commander' (not 'commander_<dept>'). The nested
+    # try/except alias in commander.py handles both; this makes the stub faithful to
+    # both export styles so the alias fallback path is exercisable under test.
+    setattr(cmd, "commander", commander_agent)
     pkg.commander = cmd
 
     sys.modules[f"{name}_kit"] = pkg

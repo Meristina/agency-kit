@@ -11,7 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 
-def _slug(text: str, max_words: int = 5) -> str:
+def slug(text: str, max_words: int = 5) -> str:
+    """URL-safe slug from text. Public so callers can pass their preferred max_words."""
     s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
     return "-".join(s.split("-")[:max_words]) or "mission"
 
@@ -27,10 +28,25 @@ def missions_dir() -> Path:
     return d
 
 
-def _agency_dir() -> Path:
+def agency_dir() -> Path:
+    """Return ~/.agency, creating it if absent. Public so batch_runner and other
+    callers don't need to duplicate this one-liner."""
     d = Path.home() / ".agency"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def strip_frontmatter(content: str) -> str:
+    """Strip YAML front-matter (---...---) written by store.save().
+
+    Returns the body text with leading/trailing whitespace removed.
+    If no front-matter is present, returns the original string unchanged.
+    """
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            return parts[2].strip()
+    return content
 
 
 def new_mission_id(goal: str) -> str:
@@ -42,7 +58,7 @@ def new_mission_id(goal: str) -> str:
     100 ms (safe — each worker's slug differs by goal text).
     """
     import time
-    lock = _agency_dir() / ".mission-id.lock"
+    lock = agency_dir() / ".mission-id.lock"
     for _ in range(20):
         try:
             lock.mkdir(exist_ok=False)
@@ -51,7 +67,7 @@ def new_mission_id(goal: str) -> str:
             time.sleep(0.005)
     try:
         ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        return f"{ts}-{_slug(goal)}"
+        return f"{ts}-{slug(goal)}"
     finally:
         try:
             lock.rmdir()

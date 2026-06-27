@@ -11,10 +11,7 @@ import json
 import re
 from pathlib import Path
 
-
-def _slug(text: str, max_words: int = 6) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
-    return "-".join(s.split("-")[:max_words]) or "mission"
+from agency_kit.store import slug as _store_slug
 
 
 def _next_id(missions: Path) -> str:
@@ -57,7 +54,7 @@ def serialize_dossier(dossier: dict, project_root) -> Path:
     project_root = Path(project_root)
     missions = project_root / "missions"
     missions.mkdir(parents=True, exist_ok=True)
-    mission_id = f"{_next_id(missions)}-{_slug(dossier.get('goal', ''))}"
+    mission_id = f"{_next_id(missions)}-{_store_slug(dossier.get('goal', ''), max_words=6)}"
     out = missions / mission_id
     out.mkdir()
     (out / "dossier.md").write_text(_dossier_md(mission_id, dossier), encoding="utf-8")

@@ -25,13 +25,13 @@ def _cmd_init(args) -> int:
 
 def _cmd_dry_run(args) -> int:
     try:
-        from agency_kit.router import _keyword_classify
+        from agency_kit.router import keyword_classify
         from agency_kit.commander import DEPT_INSTALLED
     except ModuleNotFoundError as e:
         print(f"error: {e}. Install the engine SDK: pip install openai-agents", file=sys.stderr)
         return 2
     _installed = DEPT_INSTALLED
-    route = _keyword_classify(args.goal)
+    route = keyword_classify(args.goal)
     print(f"\n[dry-run] Goal: {args.goal}")
     print(f"[dry-run] Planned route ({len(route)} dept(s), keyword classifier — no API call):")
     for i, dept in enumerate(route, 1):

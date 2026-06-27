@@ -60,10 +60,11 @@ agency-kit/
 ├─ requirements.txt             ← core dep (openai-agents)
 ├─ .env.example                 ← env vars template (copy to .env)
 │
-├─ agents/                      ← Claude units (3 .md)
+├─ agents/                      ← Claude units (16 .md)
 │   ├─ commander-agency.md
 │   ├─ inspector-agency.md
 │   └─ router-agency.md
+│   └─ _shared-agency.md  (+ 12 more: _shared-{comms,data,eu,finance,fr,marketing,ops,people,product,solve,tech,us}.md)
 │
 ├─ skills/                      ← Claude procedures (3 SKILL.md)
 │   ├─ mission-dossier/         ← cross-department dossier protocol
@@ -72,13 +73,19 @@ agency-kit/
 │
 ├─ .agency/                     ← toolkit: constitution + commands + templates + scripts
 │   ├─ memory/constitution.md   ← 10 articles, immutable rules
-│   ├─ commands/                ← 6 slash commands (single source of truth)
+│   ├─ commands/                ← 12 slash commands (single source of truth)
 │   │   ├─ mission.md           → /agency.mission
 │   │   ├─ frame.md             → /agency.frame
+│   │   ├─ inspect.md           → /agency.inspect
 │   │   ├─ product.md           → /agency.product
 │   │   ├─ marketing.md         → /agency.marketing
 │   │   ├─ solve.md             → /agency.solve
-│   │   └─ inspect.md           → /agency.inspect
+│   │   ├─ finance.md           → /agency.finance
+│   │   ├─ comms.md             → /agency.comms
+│   │   ├─ data.md              → /agency.data
+│   │   ├─ ops.md               → /agency.ops
+│   │   ├─ people.md            → /agency.people
+│   │   └─ tech.md              → /agency.tech
 │   ├─ templates/
 │   │   ├─ dossier-template.md
 │   │   └─ deliverable-template.md
@@ -94,7 +101,7 @@ agency-kit/
 │   ├─ models.py                ← grade→model mapping (env-configurable)
 │   └─ web.py                   ← search backends
 │
-├─ agency_cli/                  ← `agency` CLI (init/run/check/sync)
+├─ agency_cli/                  ← `agency` CLI (init / run / check / sync / missions / resume / export / tui / batch)
 │   ├─ cli.py  scaffolder.py  integrations.py  runner_bridge.py  sync_payload.py
 │   └─ payload/                 ← bundled mirror (.agency + agents + skills) for the wheel
 │
@@ -187,7 +194,8 @@ Dossier schema:
 goal           → original goal + Frame clarifications
 context        → sector · stage · constraints
 route          → ordered dept list + per-department rationale
-direction_check→ GO | REDIRECT | ADJUST + note
+direction_check→ GO | REDIRECT | ADJUST + note  (slash-command vocabulary in frame.md/mission.md;
+                   the Python runtime records PROCEED or STEER in dossier['direction_check']['choice'])
 dept_outputs
   .product     → full product-kit deliverable (or not_installed / not_routed)
   .marketing   → full marketing-kit deliverable
@@ -259,7 +267,7 @@ Or step by step for more control:
 ### Install
 
 ```bash
-pip install -e ".[all]"     # agency + product-kit + marketing-kit + solve-kit + finance-kit
+pip install -e ".[all]"     # all nine department kits (product · marketing · solve · finance · comms · data · ops · people · tech)
 export OPENAI_API_KEY=sk-...
 ```
 
@@ -360,6 +368,7 @@ agency init <project> --agent claude  # scaffold into a project
        from <dept>_kit.commander import commander_<dept>
        _HAS_<DEPT> = True
    except ImportError:
+       commander_<dept> = None
        _HAS_<DEPT> = False
    ```
 4. Add `commander_<dept>.as_tool()` to the commander's tools list (conditional on

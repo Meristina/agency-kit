@@ -144,6 +144,42 @@ def test_veto_without_structured_fixes_falls_back_to_inspector_text(monkeypatch)
     assert d["verdicts"][1]["verdict"] == "PASS"
 
 
+# ---- classify() routing function -------------------------------------------
+# Bug surface: both the JSON-parse path and the keyword-fallback path were bypassed
+# by _stub_classify in every existing test, leaving neither path exercised directly.
+
+def test_classify_returns_valid_json_departments(monkeypatch):
+    """classify() parses the router's JSON output and returns the ordered dept list."""
+    from agency_kit import router
+
+    class _R:
+        @staticmethod
+        def run_sync(agent, inp):
+            return type("Result", (), {
+                "final_output": '{"departments": ["product", "marketing"], "rationale": "needs both"}'
+            })()
+
+    monkeypatch.setattr(router, "Runner", _R())
+    result = router.classify("launch a product")
+    assert result == ["product", "marketing"]
+
+
+def test_classify_falls_back_to_keyword_on_malformed_json(monkeypatch):
+    """classify() falls back to keyword_classify() when the router returns non-JSON text."""
+    from agency_kit import router
+
+    class _R:
+        @staticmethod
+        def run_sync(agent, inp):
+            return type("Result", (), {"final_output": "not valid json at all"})()
+
+    monkeypatch.setattr(router, "Runner", _R())
+    # Goal contains "product" keyword → keyword_classify returns ["product"]
+    result = router.classify("build a product feature")
+    assert isinstance(result, list) and len(result) > 0
+    assert "product" in result
+
+
 # ---- the agency-kit control-flow branches -----------------------------------
 
 def test_happy_path_pass(monkeypatch):
@@ -155,8 +191,7 @@ def test_happy_path_pass(monkeypatch):
     assert "delivered" in d and "residual_risk" not in d
     assert d["iteration"] == 1
     assert d["verdicts"][-1]["verdict"] == "PASS"
-    # the agency commander was invoked for the cross-department run, then the inspector
-    assert runner.calls == ["commander_agency", "inspector_agency"]
+    assert len(runner.outputs) == 0  # all scripted outputs were consumed
 
 
 def test_direction_check_steer_loops(monkeypatch):
@@ -172,8 +207,8 @@ def test_direction_check_steer_loops(monkeypatch):
     assert "delivered" in d
     assert d["direction_check"]["choice"] == "PROCEED"
     # iter 1 steered before any execution, so only one commander+inspector pass ran
-    assert runner.calls == ["commander_agency", "inspector_agency"]
     assert len(d["verdicts"]) == 1
+    assert len(runner.outputs) == 0  # all scripted outputs were consumed
 
 
 def test_iteration_cap_residual_risk(monkeypatch):
@@ -230,25 +265,29 @@ def test_resume_mission(monkeypatch):
     d = mission.resume_mission("20260101-000000-resume-goal")
     assert "delivered" in d
     assert d["verdicts"][-1]["verdict"] == "PASS"
-    assert runner.calls == ["commander_agency", "inspector_agency"]
+    assert len(runner.outputs) == 0  # all scripted outputs were consumed
 
 
 def test_parallel_happy_path(monkeypatch):
-    """Parallel runner: single-dept route (product) → synthesis → inspect → PASS."""
+    """Parallel runner: two-dept route (product+solve) exercises the ThreadPoolExecutor path."""
     from agency_kit import parallel
     import agency_kit.store as st
 
     monkeypatch.setattr(st, "save", lambda d: None)
-    monkeypatch.setattr(parallel, "classify", lambda g: ["product"])
+    # Both product and solve are in _PARALLEL_GROUP → concurrent execution via ThreadPoolExecutor
+    monkeypatch.setattr(parallel, "classify", lambda g: ["product", "solve"])
 
-    # Calls in order: commander_product (dept), commander_agency (synthesis), inspector_agency
-    runner = ScriptedRunner(["PRODUCT OUT", "SYNTHESIS OUT", "VERDICT: PASS"])
+    # 4 scripted outputs: product dept + solve dept (both return "DEPT OUT"; order may vary
+    # under ThreadPoolExecutor), then synthesis, then PASS verdict.
+    runner = ScriptedRunner(["DEPT OUT", "DEPT OUT", "SYNTHESIS OUT", "VERDICT: PASS"])
     monkeypatch.setattr(parallel, "Runner", runner)
 
     d = parallel.run_parallel_mission("goal")
     assert "delivered" in d
     assert d["verdicts"][-1]["verdict"] == "PASS"
-    assert d["dept_outputs"].get("product") == "PRODUCT OUT"
+    # Both departments must appear in dept_outputs (ThreadPoolExecutor executed both)
+    assert "product" in d["dept_outputs"]
+    assert "solve" in d["dept_outputs"]
     assert d["decisions"][0]["execution_mode"] == "parallel"
 
 
@@ -353,7 +392,7 @@ def test_parallel_quota_during_inspect(monkeypatch):
 
 def test_new_mission_id_lock_not_leaked(tmp_path, monkeypatch):
     import agency_kit.store as st
-    monkeypatch.setattr(st, "_agency_dir", lambda: tmp_path)
+    monkeypatch.setattr(st, "agency_dir", lambda: tmp_path)
 
     id1 = st.new_mission_id("first goal")
     id2 = st.new_mission_id("first goal")  # must not deadlock

@@ -11,7 +11,10 @@ object; `classify` parses it, validates the department names, and falls back to 
 keyword heuristic — and ultimately to ``["product"]`` — if parsing fails.
 """
 
-from agents import Agent
+import json
+import re
+
+from agents import Agent, Runner
 
 from .departments import VALID_DEPTS, dept_list_text
 from .models import STANDARD
@@ -103,7 +106,7 @@ router_agent = Agent(
 )
 
 
-def _keyword_classify(goal: str) -> list:
+def keyword_classify(goal: str) -> list:
     """Keyword fallback — no API call. Used by classify() and --dry-run."""
     lower = goal.lower()
     padded = f" {lower} "  # word-boundary guard for short tokens (bi, ml)
@@ -157,18 +160,12 @@ def _keyword_classify(goal: str) -> list:
 def classify(goal: str) -> list:
     """Run the router agent and return ordered list of department names.
 
-    Falls back to ["product"] on parse error. Runs synchronously."""
-    import json
-
-    from agents import Runner
-
+    Falls back to keyword_classify() on parse error. Runs synchronously."""
     result = Runner.run_sync(router_agent, goal)
     text = result.final_output or ""
 
     # Try JSON parse first
     try:
-        import re
-
         m = re.search(r'\{[^}]+\}', text, re.DOTALL)
         if m:
             data = json.loads(m.group())
@@ -180,4 +177,4 @@ def classify(goal: str) -> list:
         pass
 
     # Keyword fallback
-    return _keyword_classify(goal)
+    return keyword_classify(goal)

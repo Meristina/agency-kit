@@ -142,12 +142,8 @@ def launch() -> None:
             if not md_path.exists():
                 viewer.update(f"_No deliverable found for mission `{mission_id}`._")
                 return
-            content = md_path.read_text(encoding="utf-8")
-            # Strip YAML front-matter written by store.save()
-            if content.startswith("---"):
-                parts = content.split("---", 2)
-                if len(parts) >= 3:
-                    content = parts[2].strip()
+            from agency_kit.store import strip_frontmatter
+            content = strip_frontmatter(md_path.read_text(encoding="utf-8"))
             viewer.update(content)
 
         def action_show_pipeline(self) -> None:

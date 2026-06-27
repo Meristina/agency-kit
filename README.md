@@ -157,10 +157,11 @@ Secrets and overrides are also read from a local, gitignored `.env` (loaded befo
 ```bash
 # Scaffold .agency/ + slash commands for your harness
 agency init
-# installs: /agency.goal     /agency.mission /agency.frame   /agency.inspect
+# installs: /agency.mission /agency.frame   /agency.inspect
 #           /agency.product  /agency.marketing /agency.solve
 #           /agency.finance  /agency.comms   /agency.data
 #           /agency.ops      /agency.people  /agency.tech
+#           (12 commands total)
 
 # Run a headless mission (router decides the route, then auto-proceeds)
 agency run "Launch our new B2B analytics product"
