@@ -2,7 +2,7 @@
 name: routing
 description: >-
   Classify a mission goal into the minimal ordered set of departments to deploy
-  (product / marketing / solve / finance). Used by the agency commander in Phase 0 (Frame)
+  (product / marketing / solve / finance / comms / data / ops / people / tech). Used by the agency commander in Phase 0 (Frame)
   via the router_agent, and again whenever the commander must reclassify mid-mission
   after a REDIRECT or a direction-check correction. Not a problem-solving method —
   it is the classification logic the whole agency pipeline depends on.
@@ -16,7 +16,7 @@ focus dissolves. This skill documents the classification logic so the commander 
 apply it confidently — both on the first call via `router_agency` and when reclassifying
 mid-mission after a REDIRECT.
 
-## The four departments
+## The nine departments
 
 | Department | Domain | Canonical keywords |
 |---|---|---|
@@ -24,6 +24,11 @@ mid-mission after a REDIRECT.
 | **marketing** | Research, positioning, content, campaigns, SEO, brand, launch comms, analytics | campaign, content, copy, positioning, messaging, SEO, brand, launch, go-to-market, ads |
 | **solve** | Problem-solving, root-cause, decision intelligence, architecture, debugging, implementation | debug, fix, bug, root cause, architect, algorithm, implement, refactor, optimise, decide |
 | **finance** | Business case, financial modelling, pricing, P&L, commercial pipeline, closing, reporting | finance, pricing, budget, ROI, P&L, cash flow, pipeline, deal, commercial, investor, business case |
+| **comms** | Corporate narrative, PR/media, crisis management, public affairs, ESG, events communications | PR, press, media, crisis, narrative, communications, ESG, stakeholders, event, launch comms |
+| **data** | Data strategy, analytics, ML/LLMOps, data pipelines, governance | data, analytics, ML, LLM, pipeline, governance, warehouse, BI, reporting, AI |
+| **ops** | Process design, PMO, compliance (NIS2, AI Act), risk management, operational excellence | process, PMO, compliance, NIS2, AI Act, risk, operations, workflow, audit |
+| **people** | Org design, talent acquisition, L&D, performance & comp, culture, people analytics | HR, hiring, talent, org design, culture, compensation, onboarding, L&D, engagement |
+| **tech** | Architecture, DevOps/IaC, security engineering, engineering excellence, build-vs-buy, DORA | architecture, DevOps, security, infrastructure, CI/CD, DORA, engineering, cloud, IaC |
 
 ## Classification rules
 
@@ -52,9 +57,12 @@ Default pipeline order when multiple departments are needed:
 3. **solve** third — applies decision intelligence to the blockers, trade-offs, or open
    decisions the upstream departments surfaced. Or runs standalone if it is the only
    routed department.
-4. **finance** last — evaluates economic viability, pricing, and commercial strategy.
-   Takes product, marketing, and solve outputs as inputs; does not re-derive upstream
-   strategy — it evaluates it financially.
+4. **finance** — evaluates economic viability, pricing, and commercial strategy. Takes upstream outputs; does not re-derive upstream strategy — it evaluates it financially.
+5. **comms** — corporate narrative, PR, crisis, ESG, event strategy. Runs after product/marketing to wrap the right message around the right offer.
+6. **data** — data strategy, pipelines, analytics, ML/LLMOps. Runs after product/solve when data infrastructure or intelligence is a primary deliverable.
+7. **ops** — process design, PMO, compliance. Runs after solve to operationalise the chosen solution.
+8. **people** — org design, talent, comp, culture. Runs after product/solve when workforce or org change is a primary deliverable.
+9. **tech** — architecture, DevOps, security, build-vs-buy. Runs after product/solve for any technical implementation decisions.
 
 Common multi-domain patterns:
 - "Launch a new product" → `["product", "marketing"]`
@@ -62,7 +70,7 @@ Common multi-domain patterns:
 - "Debug a problem and explain it to stakeholders" → `["solve", "marketing"]`
 - "Launch with a financial model" → `["product", "marketing", "finance"]`
 - "Pitch investors" → `["product", "finance"]`
-- "End-to-end engagement" / "full agency" → `["product", "marketing", "solve", "finance"]`
+- "Full agency / end-to-end engagement" → all nine (rarely justified — apply Rule 1 first)
 
 ### Rule 3 — Classify by dominant intent
 When a goal mixes signals, pick the **dominant intent** — the discipline that owns the

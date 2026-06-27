@@ -3,7 +3,7 @@ description: Deploy the solve-kit commander on this mission (problem-solving dom
 argument-hint: "<mission dir, e.g. missions/001-...>"
 ---
 
-# /agency.solve — Solve Department (commander_solve)
+# /agency.solve — Solve Department (commander_problem_solving)
 
 **Constitution check:** `.agency/memory/constitution.md` (Art. I sourcing, Art. IV
 sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
@@ -20,7 +20,7 @@ sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
    misroute in the dossier and stop. If solve-kit is not installed, record the gap
    (`dept_outputs.solve: not_installed`) and stop — never fabricate its output (Art. I).
 
-3. **Delegate to the `commander_solve` subagent** (Agent tool — runs elite grade):
+3. **Delegate to the `commander_problem_solving` subagent** (Agent tool — runs elite grade):
    pass the goal **and** the accumulated `dept_outputs` as context (Art. VII). Let the
    solve commander run its **full internal lifecycle under its own doctrine** (Art. IV):
    problem framing, root-cause analysis, solution design, decision intelligence —

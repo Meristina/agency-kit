@@ -30,6 +30,24 @@ _(set by /agency.marketing — full marketing deliverable summary, or "not_insta
 ### dept_outputs.solve
 _(set by /agency.solve — full solve deliverable summary, or "not_installed")_
 
+### dept_outputs.finance
+_(set by /agency.finance — full finance deliverable summary, or "not_installed")_
+
+### dept_outputs.comms
+_(set by /agency.comms — full comms deliverable summary, or "not_installed")_
+
+### dept_outputs.data
+_(set by /agency.data — full data deliverable summary, or "not_installed")_
+
+### dept_outputs.ops
+_(set by /agency.ops — full ops deliverable summary, or "not_installed")_
+
+### dept_outputs.people
+_(set by /agency.people — full people deliverable summary, or "not_installed")_
+
+### dept_outputs.tech
+_(set by /agency.tech — full tech deliverable summary, or "not_installed")_
+
 ## Synthesis
 _(set by /agency.mission Phase 2 — one agency voice; see deliverable.md for full output)_
 

@@ -3,20 +3,26 @@
 ## Overview
 
 agency-kit is a thin routing and orchestration layer. It does not reimplement
-product, marketing, or solve logic — it imports the department commanders as
-tools and sequences them. The departments are optional extras; agency-kit is
-useful even with only one kit installed (it degrades gracefully).
+department logic — it imports up to nine department commanders as tools and
+sequences them (product, marketing, solve, finance, comms, data, ops, people,
+tech). The departments are optional extras; agency-kit is useful even with only
+one kit installed (it degrades gracefully).
 
 ## Chain of command
 
 ```
 agency_commander (ELITE)
-  ├─ classify          → router_agency      (STANDARD) — which depts, in what order
-  ├─ product           → commander_product  (ELITE)    — product-kit [optional]
-  ├─ marketing         → commander_marketing (ELITE)   — marketing-kit [optional]
-  ├─ solve             → commander_solve    (ELITE)    — solve-kit [optional]
-  ├─ finance           → commander_finance  (ELITE)    — finance-kit [optional]
-  ├─ inspect           → agency_inspector   (ELITE)    — cross-dept consistency gate
+  ├─ classify          → router_agency       (STANDARD) — which depts, in what order
+  ├─ product           → commander_product   (ELITE)    — product-kit  [optional]
+  ├─ marketing         → commander_marketing (ELITE)    — marketing-kit [optional]
+  ├─ solve             → commander_solve     (ELITE)    — solve-kit    [optional]
+  ├─ finance           → commander_finance   (ELITE)    — finance-kit  [optional]
+  ├─ comms             → commander_comms     (ELITE)    — comms-kit    [optional]
+  ├─ data              → commander_data      (ELITE)    — data-kit     [optional]
+  ├─ ops               → commander_ops       (ELITE)    — ops-kit      [optional]
+  ├─ people            → commander_people    (ELITE)    — people-kit   [optional]
+  ├─ tech              → commander_tech      (ELITE)    — tech-kit     [optional]
+  ├─ inspect           → agency_inspector    (ELITE)    — cross-dept consistency gate
   └─ web search tools  → AK_SEARCH backend
 ```
 
@@ -47,13 +53,23 @@ run_mission(goal)
 | market / campaign / content / launch / position / seo / brand | marketing | 1 |
 | solve / debug / fix / architect / algorithm / technical / implement | solve | 1 |
 | finance / pricing / budget / roi / p&l / pipeline / commercial / deal | finance | 1 |
+| comms / pr / press release / crisis / esg / event / réputation | comms | 1 |
+| data / pipeline / analytics / bi / ml / llm / rag / warehouse | data | 1 |
+| ops / process / pmo / nis2 / ai act / compliance / procurement | ops | 1 |
+| people / hr / talent / recruiting / org design / l&d / culture | people | 1 |
+| tech / architecture / devops / security / cloud / kubernetes / soc2 | tech | 1 |
 | "launch a product" / "go to market" | product → marketing | 1 → 2 |
 | "build and market" / "product launch" | product → marketing | 1 → 2 |
 | "launch with financial model" / "pitch investors" | product → marketing → finance | 1 → 2 → 3 |
+| "launch with PR" | product → marketing → comms | 1 → 2 → 3 |
+| "build a data product" | product → data | 1 → 2 |
+| "scale engineering team" | tech → people | 1 → 2 |
 | "solve and communicate" / "fix and explain" | solve → marketing | 1 → 2 |
-| "end-to-end" / "full agency" | product → marketing → solve → finance | 1 → 2 → 3 → 4 |
+| "end-to-end" / "full agency" | minimum set the goal needs (never all nine reflexively) | router decides |
 
-Finance runs AFTER product, marketing, and solve when co-deployed — it evaluates their upstream outputs; it does not re-derive product or marketing strategy.
+Default ordering when multiple departments are co-deployed:
+product → marketing → solve → finance → comms → data → ops → people → tech.
+Each department evaluates upstream outputs; it does not re-derive upstream strategy.
 
 The router outputs JSON `{"departments": [...], "rationale": "..."}`.
 Keyword fallback in `classify()` handles parse errors gracefully.

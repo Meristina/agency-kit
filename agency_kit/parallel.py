@@ -4,6 +4,11 @@ Dependency order:
   Stage 1 (parallel):   product, solve       — independent; run with ThreadPoolExecutor
   Stage 2 (sequential): marketing            — uses product output as context
   Stage 3 (sequential): finance              — uses all upstream output as context
+  Stage 4 (sequential): comms               — uses product + marketing output as context
+  Stage 5 (sequential): data                — uses all upstream output as context
+  Stage 6 (sequential): ops                 — uses all upstream output as context
+  Stage 7 (sequential): people              — uses all upstream output as context
+  Stage 8 (sequential): tech                — uses all upstream output as context
 
 The agency commander is used only for SYNTHESIS (combining dept outputs into one
 cross-department deliverable) and the agency inspector for the final audit.
@@ -28,7 +33,6 @@ from .router import classify
 from . import store
 
 _PARALLEL_GROUP = frozenset({"product", "solve"})
-_SEQUENTIAL_AFTER = ["marketing", "finance"]
 
 
 def _dept_brief(dept: str, goal: str, upstream: dict) -> str:
@@ -62,12 +66,22 @@ def _get_commanders():
         commander_marketing, _HAS_MARKETING,
         commander_solve, _HAS_SOLVE,
         commander_finance, _HAS_FINANCE,
+        commander_comms, _HAS_COMMS,
+        commander_data, _HAS_DATA,
+        commander_ops, _HAS_OPS,
+        commander_people, _HAS_PEOPLE,
+        commander_tech, _HAS_TECH,
     )
     return {
         "product":   (commander_product,   _HAS_PRODUCT),
         "marketing": (commander_marketing, _HAS_MARKETING),
         "solve":     (commander_solve,     _HAS_SOLVE),
         "finance":   (commander_finance,   _HAS_FINANCE),
+        "comms":     (commander_comms,     _HAS_COMMS),
+        "data":      (commander_data,      _HAS_DATA),
+        "ops":       (commander_ops,       _HAS_OPS),
+        "people":    (commander_people,    _HAS_PEOPLE),
+        "tech":      (commander_tech,      _HAS_TECH),
     }
 
 
@@ -76,7 +90,7 @@ def _run_dept(commander, prompt: str) -> str:
 
 
 def _execute_departments(route: list, goal: str) -> dict:
-    """Stage 1: parallel (product+solve); Stage 2+: sequential (marketing → finance)."""
+    """Stage 1: parallel (product+solve); Stage 2+: sequential in router's returned order."""
     commanders = _get_commanders()
     dept_outputs = {}
 
@@ -98,10 +112,10 @@ def _execute_departments(route: list, goal: str) -> dict:
         dept_outputs[dept] = _run_dept(commanders[dept][0], _dept_brief(dept, goal, {}))
         print(f"  [sequential] {dept} done")
 
-    # Stage 2+ — sequential
-    for dept in _SEQUENTIAL_AFTER:
-        if dept not in route:
-            continue
+    # Stage 2+ — sequential, preserving the router's returned order
+    for dept in route:
+        if dept in _PARALLEL_GROUP:
+            continue  # already ran in stage 1
         cmd, has = commanders[dept]
         if not has or not cmd:
             print(f"  [skip] {dept} not installed")
@@ -117,7 +131,8 @@ def run_parallel_mission(goal: str, dc_fn=auto_proceed) -> dict:
     """Drive the parallel cross-department loop. Returns the dossier.
 
     Same control-flow as run_mission (Direction Check → Execute → Inspect → loop)
-    but runs product+solve concurrently before marketing/finance.
+    but runs product+solve concurrently before the sequential tail (marketing → finance →
+    comms → data → ops → people → tech).
     """
     dossier = new_dossier(goal)
     dossier["mission_id"] = store.new_mission_id(goal)

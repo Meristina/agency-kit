@@ -96,7 +96,7 @@ def _harness_choices():
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agency",
-        description="AI Agency — unified orchestrator for product-kit, marketing-kit, solve-kit, and finance-kit",
+        description="AI Agency — unified orchestrator for nine optional department kits (product, marketing, solve, finance, comms, data, ops, people, tech)",
     )
     p.add_argument("--version", action="version", version=f"agency-kit {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -113,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--steer", action="store_true",
                     help="open the interactive Direction Check (otherwise auto-proceeds)")
     pr.add_argument("--parallel", action="store_true",
-                    help="run product+solve concurrently, then marketing, then finance")
+                    help="run routed departments concurrently where possible (experimental)")
     pr.set_defaults(func=_cmd_run)
 
     pm = sub.add_parser("missions", help="list saved missions from ~/.agency/missions/")

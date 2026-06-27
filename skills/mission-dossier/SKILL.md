@@ -32,6 +32,12 @@ AGENCY MISSION DOSSIER
     .product     : full product deliverable or "not_installed" or "not_routed"
     .marketing   : full marketing deliverable or "not_installed" or "not_routed"
     .solve       : full solve deliverable or "not_installed" or "not_routed"
+    .finance     : full finance deliverable or "not_installed" or "not_routed"
+    .comms       : full comms deliverable or "not_installed" or "not_routed"
+    .data        : full data deliverable or "not_installed" or "not_routed"
+    .ops         : full ops deliverable or "not_installed" or "not_routed"
+    .people      : full people deliverable or "not_installed" or "not_routed"
+    .tech        : full tech deliverable or "not_installed" or "not_routed"
   synthesis      : combined cross-department deliverable (one agency voice)
   assumptions    : list — each tagged [ASSUMPTION] | confirmed | à vérifier
   decisions      : per phase — what was chosen + the one-line why

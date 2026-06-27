@@ -30,9 +30,15 @@ VII (cross-dept pipeline), IX (inspector).
      **GO / REDIRECT / ADJUST**. On REDIRECT, reclassify; on GO or "auto", continue.
 
 3. **Execute** (Phase 1) — run each routed department in order (Art. VII):
-   - `/agency.product $MISSION` — if `product` is in the route.
+   - `/agency.product $MISSION`   — if `product` is in the route.
    - `/agency.marketing $MISSION` — if `marketing` is in the route.
-   - `/agency.solve $MISSION` — if `solve` is in the route.
+   - `/agency.solve $MISSION`     — if `solve` is in the route.
+   - `/agency.finance $MISSION`   — if `finance` is in the route.
+   - `/agency.comms $MISSION`     — if `comms` is in the route.
+   - `/agency.data $MISSION`      — if `data` is in the route.
+   - `/agency.ops $MISSION`       — if `ops` is in the route.
+   - `/agency.people $MISSION`    — if `people` is in the route.
+   - `/agency.tech $MISSION`      — if `tech` is in the route.
    Each department receives the goal **plus all prior `dept_outputs`** as context.
    If a department is not installed, record the gap in the dossier and continue —
    never fabricate its output (Art. I, Art. IV).

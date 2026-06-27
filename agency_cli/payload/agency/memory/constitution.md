@@ -1,7 +1,8 @@
 # The Agency-Kit Constitution
 
-The supreme doctrine of **agency-kit** — the meta-orchestrator that unifies four optional
-departments (product-kit, marketing-kit, solve-kit, finance-kit) under a single CLI and routing layer.
+The supreme doctrine of **agency-kit** — the meta-orchestrator that unifies nine optional
+departments (product-kit, marketing-kit, solve-kit, finance-kit, comms-kit, data-kit, ops-kit,
+people-kit, tech-kit) under a single CLI and routing layer.
 
 This Constitution governs **every `agency.*` command**. It sits *above* the meta-orchestrator and
 *below* each department's own internal doctrine: agency-kit commands the departments, but never
@@ -62,6 +63,11 @@ to end:
 - **marketing-kit** owns research, positioning, content, campaigns, analytics.
 - **solve-kit** owns problem-solving, root-cause analysis, decision intelligence.
 - **finance-kit** owns business case, financial modelling, pricing, commercial pipeline, closing, reporting.
+- **comms-kit** owns corporate communications, PR/media relations, crisis management, public affairs B2G, ESG/CSRD reporting, events & experiential.
+- **data-kit** owns data strategy, data engineering, analytics/BI, ML/LLMOps, data quality, data products.
+- **ops-kit** owns process optimisation, PMO, procurement B2G, EU regulatory compliance (NIS2, AI Act, DORA ICT), risk mapping, lean/VSM, BCP.
+- **people-kit** owns org design, talent acquisition, L&D, performance & compensation, pay equity, DEI, culture, people analytics.
+- **tech-kit** owns software architecture, DevOps/IaC, security (OWASP, SOC2, zero trust, threat modeling), engineering excellence, build-vs-buy, DORA metrics, FinOps.
 
 The Agency **never bypasses, reimplements, or short-circuits a department's internal doctrine,
 quality gates, or units.** It does not "do the product work itself" to save a step. When a domain
@@ -106,10 +112,21 @@ The canonical flow is:
    and problem-solving across the combined picture.
 3. **product-kit**, **marketing-kit**, and **solve-kit** output all feed **finance-kit** for
    economic viability, pricing, commercial pipeline, and investor reporting.
+4. **comms-kit** runs after product/marketing when messaging and narrative need external
+   expression — PR, crisis, public affairs, ESG, events.
+5. **data-kit** runs when the mission involves building or scaling data infrastructure,
+   analytics, ML/AI, or data products.
+6. **ops-kit** runs when the mission involves operational delivery, regulatory fit (NIS2,
+   AI Act, DORA ICT), procurement B2G, or risk mapping.
+7. **people-kit** runs when the mission involves the organisation's human capital — org
+   design, talent, performance, culture, or people analytics.
+8. **tech-kit** runs when the mission involves technology decisions, architecture, DevOps,
+   security, or engineering excellence.
 
-The dossier is passed forward at every hop so no department starts blind, and so downstream work is
-grounded in upstream decisions rather than re-deriving them. The pipeline order may adapt to the
-mission, but the principle holds: **upstream output is explicit input downstream.**
+The default ordering is: product → marketing → solve → finance → comms → data → ops →
+people → tech. Order may adapt to the mission when domain logic demands it, but the
+principle holds: **upstream output is explicit input downstream.** The dossier is passed
+forward at every hop so no department starts blind.
 
 ## Article VIII — Optional Direction Check, No Mandatory HITL
 

@@ -1,6 +1,6 @@
 # Agency-Kit
 
-The **meta-orchestrator** of the AI Agency. Agency-Kit sits one level above four optional departments — `product-kit`, `marketing-kit`, `solve-kit`, and `finance-kit` — reads a mission goal, and routes it to the right department(s). It runs single-department missions as well as cross-department pipelines (e.g. *product → marketing → finance*) behind a single CLI and a single Python entry point, so you describe the outcome once and the agency figures out who does what, in what order.
+The **meta-orchestrator** of the AI Agency. Agency-Kit sits one level above nine optional departments — `product-kit`, `marketing-kit`, `solve-kit`, `finance-kit`, `comms-kit`, `data-kit`, `ops-kit`, `people-kit`, and `tech-kit` — reads a mission goal, and routes it to the right department(s). It runs single-department missions as well as cross-department pipelines (e.g. *product → marketing → finance*) behind a single CLI and a single Python entry point, so you describe the outcome once and the agency figures out who does what, in what order.
 
 ---
 
@@ -13,6 +13,11 @@ Agency Commander
  ├─ commander_marketing  🎖️  marketing-kit  (optional extra)
  ├─ commander_solve      🎖️  solve-kit      (optional extra)
  ├─ commander_finance    🎖️  finance-kit    (optional extra)
+ ├─ commander_comms      🎖️  comms-kit      (optional extra)
+ ├─ commander_data       🎖️  data-kit       (optional extra)
+ ├─ commander_ops        🎖️  ops-kit        (optional extra)
+ ├─ commander_people     🎖️  people-kit     (optional extra)
+ ├─ commander_tech       🎖️  tech-kit       (optional extra)
  └─ inspector_agency     🎖️  cross-department consistency check (veto power)
 ```
 
@@ -25,7 +30,7 @@ Departments are **optional extras**. If a department package is not installed, i
 
 ## Routing
 
-The router reads the goal and returns an **ordered** list of departments (earlier department runs first). It deploys the *minimum* set the goal actually requires — a pricing question is `["finance"]`, not all four.
+The router reads the goal and returns an **ordered** list of departments (earlier department runs first). It deploys the *minimum* set the goal actually requires — a pricing question is `["finance"]`, not all nine.
 
 ### Single-department
 
@@ -35,6 +40,11 @@ The router reads the goal and returns an **ordered** list of departments (earlie
 | `campaign` · `content` · `launch` · `positioning` · `seo` · `brand` | **marketing** |
 | `debug` · `architect` · `algorithm` · `implement` · `solve` · `fix` | **solve** |
 | `finance` · `pricing` · `budget` · `roi` · `p&l` · `pipeline` · `commercial` | **finance** |
+| `pr` · `press release` · `crisis` · `esg` · `csrd` · `public affairs` · `events` | **comms** |
+| `data` · `pipeline` · `analytics` · `bi` · `ml` · `llm` · `rag` · `warehouse` | **data** |
+| `ops` · `process` · `pmo` · `nis2` · `ai act` · `compliance` · `procurement` | **ops** |
+| `hr` · `talent` · `recruiting` · `org design` · `l&d` · `culture` · `compensation` | **people** |
+| `architecture` · `devops` · `security` · `cloud` · `kubernetes` · `ci/cd` · `soc2` | **tech** |
 
 ### Cross-department pipelines
 
@@ -45,7 +55,7 @@ The router reads the goal and returns an **ordered** list of departments (earlie
 | "solve and explain" | **solve → marketing** |
 | "pitch investors" | **product → finance** |
 | "launch with financial model" | **product → marketing → finance** |
-| "end-to-end" / "full agency" | **product → marketing → solve → finance** |
+| "end-to-end" / "full agency" | minimum set the goal needs (never all nine reflexively) |
 
 The router outputs a small JSON object (`{"departments": [...], "rationale": "..."}`). If parsing fails it falls back to a keyword heuristic, and ultimately to `["product"]`.
 
@@ -61,10 +71,16 @@ pip install -e .
 Install the departments you need as extras:
 
 ```bash
-pip install -e ".[all]"          # product + marketing + solve
+pip install -e ".[all]"          # all nine department kits
 pip install -e ".[product]"      # product-kit only
 pip install -e ".[marketing]"    # marketing-kit only
 pip install -e ".[solve]"        # solve-kit only
+pip install -e ".[finance]"      # finance-kit only
+pip install -e ".[comms]"        # comms-kit only
+pip install -e ".[data]"         # data-kit only
+pip install -e ".[ops]"          # ops-kit only
+pip install -e ".[people]"       # people-kit only
+pip install -e ".[tech]"         # tech-kit only
 pip install -e ".[dev]"          # pytest (offline tests)
 ```
 
@@ -123,6 +139,12 @@ Secrets and overrides are also read from a local, gitignored `.env` (loaded befo
 | product | `PK_ELITE_MODEL` | `PK_STANDARD_MODEL` | `PK_SEARCH` |
 | marketing | `MK_ELITE_MODEL` | `MK_STANDARD_MODEL` | `MK_SEARCH` |
 | solve | `SK_ELITE_MODEL` | `SK_STANDARD_MODEL` | `SK_SEARCH` |
+| finance | `FK_ELITE_MODEL` | `FK_STANDARD_MODEL` | `FK_SEARCH` |
+| comms | `CK_ELITE_MODEL` | `CK_STANDARD_MODEL` | `CK_SEARCH` |
+| data | `DK_ELITE_MODEL` | `DK_STANDARD_MODEL` | `DK_SEARCH` |
+| ops | `OK_ELITE_MODEL` | `OK_STANDARD_MODEL` | `OK_SEARCH` |
+| people | `PEK_ELITE_MODEL` | `PEK_STANDARD_MODEL` | `PEK_SEARCH` |
+| tech | `TK_ELITE_MODEL` | `TK_STANDARD_MODEL` | `TK_SEARCH` |
 
 ---
 
@@ -133,8 +155,10 @@ Secrets and overrides are also read from a local, gitignored `.env` (loaded befo
 ```bash
 # Scaffold .agency/ + slash commands for your harness
 agency init
-# installs: /agency.mission  /agency.frame  /agency.product
-#           /agency.marketing /agency.solve  /agency.inspect
+# installs: /agency.mission  /agency.frame   /agency.inspect
+#           /agency.product  /agency.marketing /agency.solve
+#           /agency.finance  /agency.comms   /agency.data
+#           /agency.ops      /agency.people  /agency.tech
 
 # Run a headless mission (router decides the route, then auto-proceeds)
 agency run "Launch our new B2B analytics product"
@@ -174,7 +198,7 @@ The mission loop is `CLASSIFY → (optional Direction Check) → EXECUTE → INS
 
 ---
 
-## The four kits
+## The nine kits
 
 | Department | Repo | Focus |
 |---|---|---|
@@ -182,12 +206,17 @@ The mission loop is `CLASSIFY → (optional Direction Check) → EXECUTE → INS
 | Marketing | `marketing-kit` | Research · positioning · content · campaigns · analytics |
 | Solve | `solve-kit` | Problem-solving · root-cause · architecture · implementation |
 | Finance | `finance-kit` | Business case · pricing · P&L · commercial pipeline · closing · reporting |
+| Comms | `comms-kit` | Corporate comms · PR/media · crisis · public affairs · ESG/CSRD · events |
+| Data | `data-kit` | Data strategy · engineering · analytics/BI · ML/LLMOps · data products |
+| Ops | `ops-kit` | Process optimisation · PMO · EU compliance (NIS2, AI Act) · risk |
+| People | `people-kit` | Org design · talent · L&D · performance · culture · people analytics |
+| Tech | `tech-kit` | Architecture · DevOps · security · engineering excellence · build-vs-buy |
 
 Each kit is a complete, standalone agent army (Commander → Officers → Soldiers → Inspector) with its own CLI and its own constitution.
 
 ---
 
-## Why four kits + one orchestrator (not a monorepo)
+## Why nine kits + one orchestrator (not a monorepo)
 
 - **Each kit is standalone.** A client installs only the department(s) they need. `product-kit` runs perfectly well with no knowledge that agency-kit exists.
 - **Agency-kit adds cross-department routing without coupling the kits.** Departments are optional extras wired in conditionally; an absent kit disappears from the route rather than breaking the import.

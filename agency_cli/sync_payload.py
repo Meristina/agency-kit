@@ -1,8 +1,9 @@
 """sync_payload — regenerate the bundled payload from all source repos.
 
-Pulls from agency-kit (the meta-orchestrator) AND all four department kit repos
-(product-kit, marketing-kit, solve-kit, finance-kit) so that `agency init` installs
-a complete, standalone agency without requiring separate per-kit init calls.
+Pulls from agency-kit (the meta-orchestrator) AND all nine department kit repos
+(product-kit, marketing-kit, solve-kit, finance-kit, comms-kit, data-kit,
+ops-kit, people-kit, tech-kit) so that `agency init` installs a complete,
+standalone agency without requiring separate per-kit init calls.
 
 Source layout (all repos are expected as siblings of agency-kit):
   agency-kit/     → .agency/, agents/, skills/
@@ -10,6 +11,11 @@ Source layout (all repos are expected as siblings of agency-kit):
   marketing-kit/  → agents/, skills/
   solve-kit/      → agents/, skills/
   finance-kit/    → agents/, skills/
+  comms-kit/      → agents/, skills/
+  data-kit/       → agents/, skills/
+  ops-kit/        → agents/, skills/
+  people-kit/     → agents/, skills/
+  tech-kit/       → agents/, skills/
 
 Bundle layout (agency_cli/payload/):
   payload/agency/    ← .agency/ (constitution, commands, templates, scripts)
@@ -17,9 +23,15 @@ Bundle layout (agency_cli/payload/):
   payload/skills/    ← merged skills from agency-kit + all dept kits
 
 Naming conflict: every dept kit has its own inspector.md — renamed on copy:
-  product-kit/agents/inspector.md  → payload/agents/inspector-product.md
+  product-kit/agents/inspector.md   → payload/agents/inspector-product.md
   marketing-kit/agents/inspector.md → payload/agents/inspector-marketing.md
-  solve-kit/agents/inspector.md    → payload/agents/inspector-solve.md
+  solve-kit/agents/inspector.md     → payload/agents/inspector-solve.md
+  finance-kit/agents/inspector.md   → payload/agents/inspector-finance.md
+  comms-kit/agents/inspector.md     → payload/agents/inspector-comms.md
+  data-kit/agents/inspector.md      → payload/agents/inspector-data.md
+  ops-kit/agents/inspector.md       → payload/agents/inspector-ops.md
+  people-kit/agents/inspector.md    → payload/agents/inspector-people.md
+  tech-kit/agents/inspector.md      → payload/agents/inspector-tech.md
 
 Run:  agency sync   (or: python -m agency_cli.sync_payload)
 """
@@ -47,6 +59,11 @@ DEPT_KITS = [
     ("marketing-kit", "marketing"),
     ("solve-kit",     "solve"),
     ("finance-kit",   "finance"),
+    ("comms-kit",     "comms"),
+    ("data-kit",      "data"),
+    ("ops-kit",       "ops"),
+    ("people-kit",    "people"),
+    ("tech-kit",      "tech"),
 ]
 
 

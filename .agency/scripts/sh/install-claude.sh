@@ -34,6 +34,7 @@ fi
 
 echo "Installed into $DEST :"
 echo "  commands : $(ls "$ROOT"/.agency/commands/*.md | wc -l | tr -d ' ') → /agency.<name>"
-echo "  agents   : $(ls "$ROOT"/agents/*.md | wc -l | tr -d ' ')"
+AGENT_SRC="$PAYLOAD_AGENTS"; [ -d "$AGENT_SRC" ] || AGENT_SRC="$ROOT/agents"
+echo "  agents   : $(ls "$AGENT_SRC"/*.md | wc -l | tr -d ' ')"
 echo "  skills   : ${SKILL_COUNT}"
 echo "Try:  /agency.mission \"<your goal>\""

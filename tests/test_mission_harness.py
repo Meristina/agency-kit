@@ -1,6 +1,6 @@
 """End-to-end harness test for the agency mission loop — no SDK, no network, no API key.
 
-conftest injects a fake `agents` module (and the four department-kit stubs) into sys.modules
+conftest injects a fake `agents` module (and all nine department-kit stubs) into sys.modules
 BEFORE importing agency_kit.mission — the package, its commander, router, and inspector all do
 `from agents import ...` at import time and call `.as_tool()` while building the cross-department
 graph. We then drive `run_mission` by scripting `Runner.run_sync` outputs and injecting a

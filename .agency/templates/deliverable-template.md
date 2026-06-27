@@ -13,6 +13,12 @@
 | product | routed / not_routed / not_installed | elite |
 | marketing | routed / not_routed / not_installed | elite |
 | solve | routed / not_routed / not_installed | elite |
+| finance | routed / not_routed / not_installed | elite |
+| comms | routed / not_routed / not_installed | elite |
+| data | routed / not_routed / not_installed | elite |
+| ops | routed / not_routed / not_installed | elite |
+| people | routed / not_routed / not_installed | elite |
+| tech | routed / not_routed / not_installed | elite |
 
 ---
 
@@ -31,8 +37,25 @@ _(What the product department produced and the key decisions it made. Leave blan
 _(What the marketing department produced and the key decisions it made. Leave blank if not routed.)_
 
 ### Solve
-_(What the solve department produced — decisions, root causes, solution chosen, action plan.
-Leave blank if not routed.)_
+_(What the solve department produced — decisions, root causes, solution chosen, action plan. Leave blank if not routed.)_
+
+### Finance
+_(What the finance department produced — business case, pricing, pipeline, P&L, commercial strategy. Leave blank if not routed.)_
+
+### Comms
+_(What the comms department produced — narrative, PR plan, crisis protocol, ESG report, event strategy. Leave blank if not routed.)_
+
+### Data
+_(What the data department produced — data strategy, pipeline architecture, analytics layer, ML/LLMOps plan. Leave blank if not routed.)_
+
+### Ops
+_(What the ops department produced — process map, PMO plan, compliance assessment, risk register. Leave blank if not routed.)_
+
+### People
+_(What the people department produced — org design, talent plan, compensation framework, culture program. Leave blank if not routed.)_
+
+### Tech
+_(What the tech department produced — architecture decisions, DevOps plan, security assessment, build-vs-buy recommendation. Leave blank if not routed.)_
 
 ---
 

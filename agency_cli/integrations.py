@@ -14,7 +14,9 @@ harness; the OpenAI-ecosystem target is **codex** (`.codex/prompts/`).
 | gemini   | .gemini/commands/agency/     | <n>.toml                | TOML (description + prompt)    |
 | opencode | .opencode/commands/          | agency-<n>.md           | MD + frontmatter (description) |
 
-Agency-Kit slash commands: /agency.mission, /agency.product, /agency.marketing, /agency.solve
+Agency-Kit slash commands: /agency.mission, /agency.frame, /agency.inspect,
+/agency.product, /agency.marketing, /agency.solve, /agency.finance,
+/agency.comms, /agency.data, /agency.ops, /agency.people, /agency.tech
 
 Claude also receives the agents+skills engine (the units the commands drive).
 """

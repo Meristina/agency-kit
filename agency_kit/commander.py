@@ -8,12 +8,18 @@ carries each department's output forward as context into the next, synthesises a
 single cross-department deliverable, and submits it to the agency inspector.
 
 Chain of command (Constitution Art. IV, VI, IX):
-  CLASSIFY    → router_agency      (🔵 standard) — which departments to invoke
-  EXECUTE     → commander_product  (🎖️ elite, product-kit)
-              → commander_marketing(🎖️ elite, marketing-kit)
-              → commander_solve    (🎖️ elite, solve-kit — if installed)
+  CLASSIFY    → router_agency       (🔵 standard) — which departments to invoke
+  EXECUTE     → commander_product   (🎖️ elite, product-kit   — if installed)
+              → commander_marketing (🎖️ elite, marketing-kit  — if installed)
+              → commander_solve     (🎖️ elite, solve-kit      — if installed)
+              → commander_finance   (🎖️ elite, finance-kit    — if installed)
+              → commander_comms     (🎖️ elite, comms-kit      — if installed)
+              → commander_data      (🎖️ elite, data-kit       — if installed)
+              → commander_ops       (🎖️ elite, ops-kit        — if installed)
+              → commander_people    (🎖️ elite, people-kit     — if installed)
+              → commander_tech      (🎖️ elite, tech-kit       — if installed)
   SYNTHESIZE  → combine into one cross-department deliverable
-  AUDIT       → inspector_agency   (🎖️ elite) — mandatory cross-department gate
+  AUDIT       → inspector_agency    (🎖️ elite) — mandatory cross-department gate
 
 Departments are optional extras. If a department package is not installed, its
 commander tool is absent from the toolset — the commander routes around it and
@@ -60,6 +66,41 @@ except ImportError:
     commander_finance = None
     _HAS_FINANCE = False
 
+try:
+    from comms_kit.commander import commander_comms
+    _HAS_COMMS = True
+except ImportError:
+    commander_comms = None
+    _HAS_COMMS = False
+
+try:
+    from data_kit.commander import commander_data
+    _HAS_DATA = True
+except ImportError:
+    commander_data = None
+    _HAS_DATA = False
+
+try:
+    from ops_kit.commander import commander_ops
+    _HAS_OPS = True
+except ImportError:
+    commander_ops = None
+    _HAS_OPS = False
+
+try:
+    from people_kit.commander import commander_people
+    _HAS_PEOPLE = True
+except ImportError:
+    commander_people = None
+    _HAS_PEOPLE = False
+
+try:
+    from tech_kit.commander import commander_tech
+    _HAS_TECH = True
+except ImportError:
+    commander_tech = None
+    _HAS_TECH = False
+
 
 # ===========================================================================
 # COMMANDER INSTRUCTIONS
@@ -73,12 +114,17 @@ right departments in the right order, carry each department's output forward as
 context into the next, synthesise one cross-department deliverable, and submit
 it to the agency inspector before anything ships.
 
-You command four optional departments and one cross-department auditor:
+You command nine optional departments and one cross-department auditor:
   - classify  (router_agency)       -> which departments the mission needs
   - product   (commander_product)   -> full product lifecycle (product-kit)
-  - marketing (commander_marketing)  -> positioning, content, campaigns (marketing-kit)
+  - marketing (commander_marketing) -> positioning, content, campaigns (marketing-kit)
   - solve     (commander_solve)     -> problem-solving, decision intelligence (solve-kit)
   - finance   (commander_finance)   -> viability, pricing, pipeline, closing, reporting (finance-kit)
+  - comms     (commander_comms)     -> corporate comms, PR/media, crisis, public affairs, ESG, events (comms-kit)
+  - data      (commander_data)      -> data strategy, engineering, analytics, ML/LLMOps, data products (data-kit)
+  - ops       (commander_ops)       -> process optimisation, PMO, procurement B2G, risk, compliance (ops-kit)
+  - people    (commander_people)    -> org design, talent, L&D, performance, culture, people analytics (people-kit)
+  - tech      (commander_tech)      -> architecture, DevOps, security, engineering excellence, build-vs-buy (tech-kit)
   - inspect   (inspector_agency)    -> cross-department quality gate (mandatory)
 
 A department tool is present ONLY when its kit is installed. If a routed
@@ -104,7 +150,7 @@ CONSTITUTION CONSTRAINTS (non-negotiable):
 
 PHASE 0 — CLASSIFY (call: classify):
 Call the router with the mission goal. It returns:
-  - route: the ordered subset of {product, marketing, solve, finance} to invoke.
+  - route: the ordered subset of {product, marketing, solve, finance, comms, data, ops, people, tech} to invoke.
   - rationale: one line per department on why it is in or out.
 Record both in the dossier (route field). Do not deploy a department the router
 excluded, and do not silently add one it omitted. If you believe the route is
@@ -114,7 +160,7 @@ If the brief is thin, ask at most 2-3 genuinely-unanswered clarifying questions
 (mission type, stage/context, constraints) BEFORE classifying. If it is already
 rich, classify immediately.
 
-PHASE 1 — EXECUTE (calls: product -> marketing -> solve -> finance, per route):
+PHASE 1 — EXECUTE (calls: routed departments in order, per route):
 Run each routed department in order. Each department's output is fed forward as
 context into the next — a department never starts from the raw goal alone once
 an upstream department has run.
@@ -128,8 +174,22 @@ Default order when multiple departments are routed:
                  blocker, trade-off, or open decision upstream surfaced (or runs
                  standalone if it is the only routed department).
   4. finance   — evaluates economic viability, pricing, and commercial strategy.
-                 Takes product, marketing, and solve outputs as inputs — it does
-                 not re-derive upstream strategy; it evaluates it financially.
+                 Takes product, marketing, and solve outputs as inputs.
+  5. comms     — corporate communications, PR/media, crisis management, public
+                 affairs, ESG/CSRD, and events. Runs after product/marketing
+                 when messaging and narrative are needed externally.
+  6. data      — data strategy, engineering pipelines, analytics/BI, ML/LLMOps,
+                 data quality, and data products. Runs when the mission involves
+                 building or scaling data infrastructure or intelligence.
+  7. ops       — process optimisation, PMO, procurement B2G, legal-EU compliance
+                 (NIS2, AI Act, DORA ICT), risk mapping. Runs when the mission
+                 involves operational delivery, regulatory fit, or scaling ops.
+  8. people    — org design, talent acquisition, L&D, performance, compensation,
+                 culture, and people analytics. Runs when the mission involves
+                 the organisation's human capital.
+  9. tech      — software architecture, DevOps/IaC, security (OWASP, SOC2, zero
+                 trust), engineering excellence, build-vs-buy, DORA metrics.
+                 Runs when the mission involves technology decisions or delivery.
 For each department call: pass the goal PLUS the accumulated upstream
 dept_outputs as context; capture the full deliverable into dept_outputs[<dept>];
 carry it forward — never reset or drop an upstream output.
@@ -210,9 +270,9 @@ agency_commander = Agent(
             tool_name="classify",
             tool_description=(
                 "Classify the mission goal: return the ordered subset of "
-                "departments {product, marketing, solve, finance} to invoke, with a "
-                "one-line rationale per department. Call this FIRST, before "
-                "deploying any department."
+                "departments {product, marketing, solve, finance, comms, data, ops, people, tech} "
+                "to invoke, with a one-line rationale per department. Call this FIRST, "
+                "before deploying any department."
             ),
         ),
         *(
@@ -278,6 +338,79 @@ agency_commander = Agent(
             if _HAS_FINANCE
             else []
         ),
+        *(
+            [
+                commander_comms.as_tool(
+                    tool_name="comms",
+                    tool_description=(
+                        "Deploy comms-kit: corporate communications, PR/media "
+                        "relations, crisis management, public affairs B2G, "
+                        "ESG/CSRD reporting, and events. Pass the goal plus "
+                        "upstream department outputs as context. (🎖️ elite)"
+                    ),
+                )
+            ]
+            if _HAS_COMMS
+            else []
+        ),
+        *(
+            [
+                commander_data.as_tool(
+                    tool_name="data",
+                    tool_description=(
+                        "Deploy data-kit: data strategy, engineering pipelines, "
+                        "analytics/BI, ML/LLMOps, data quality, and data products. "
+                        "Pass the goal plus upstream outputs as context. (🎖️ elite)"
+                    ),
+                )
+            ]
+            if _HAS_DATA
+            else []
+        ),
+        *(
+            [
+                commander_ops.as_tool(
+                    tool_name="ops",
+                    tool_description=(
+                        "Deploy ops-kit: process optimisation, PMO, procurement "
+                        "B2G, EU regulatory compliance (NIS2, AI Act, DORA ICT), "
+                        "and risk mapping. Pass the goal plus upstream outputs as "
+                        "context. (🎖️ elite)"
+                    ),
+                )
+            ]
+            if _HAS_OPS
+            else []
+        ),
+        *(
+            [
+                commander_people.as_tool(
+                    tool_name="people",
+                    tool_description=(
+                        "Deploy people-kit: org design, talent acquisition, L&D, "
+                        "performance & compensation, culture, and people analytics. "
+                        "Pass the goal plus upstream outputs as context. (🎖️ elite)"
+                    ),
+                )
+            ]
+            if _HAS_PEOPLE
+            else []
+        ),
+        *(
+            [
+                commander_tech.as_tool(
+                    tool_name="tech",
+                    tool_description=(
+                        "Deploy tech-kit: software architecture, DevOps/IaC, "
+                        "security (OWASP, SOC2, zero trust), engineering excellence, "
+                        "build-vs-buy decisions, and DORA metrics. Pass the goal "
+                        "plus upstream outputs as context. (🎖️ elite)"
+                    ),
+                )
+            ]
+            if _HAS_TECH
+            else []
+        ),
         agency_inspector.as_tool(
             tool_name="inspect",
             tool_description=(
@@ -310,6 +443,11 @@ if __name__ == "__main__":
                 ("marketing", _HAS_MARKETING),
                 ("solve", _HAS_SOLVE),
                 ("finance", _HAS_FINANCE),
+                ("comms", _HAS_COMMS),
+                ("data", _HAS_DATA),
+                ("ops", _HAS_OPS),
+                ("people", _HAS_PEOPLE),
+                ("tech", _HAS_TECH),
             )
             if present
         ]

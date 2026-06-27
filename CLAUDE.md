@@ -1,9 +1,10 @@
 # agency-kit — Claude Code context
 
 Meta-orchestrator for the AI Agency. Classifies a mission goal and routes it to
-the right department(s): product-kit, marketing-kit, solve-kit, and/or finance-kit — in sequence,
-feeding each department's output as context into the next. One CLI (`agency`), one
-inspector (`inspector_agency`), one mission loop.
+the right department(s) — in sequence, feeding each department's output as context into the next.
+One CLI (`agency`), one inspector (`inspector_agency`), one mission loop.
+
+**9 departments available:** product · marketing · solve · finance · comms · data · ops · people · tech
 
 ## Key files
 
@@ -26,7 +27,7 @@ inspector (`inspector_agency`), one mission loop.
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -v          # 36 tests, offline (SDK stubbed in conftest.py)
+pytest tests/ -v          # 37 tests, offline (SDK stubbed in conftest.py)
 ```
 
 ## Environment variables
@@ -42,11 +43,16 @@ OPENAI_API_KEY=...
 ## Add a department kit
 
 ```bash
-pip install -e ".[product]"    # adds commander_product tool to agency_commander
-pip install -e ".[marketing]"  # adds commander_marketing
-pip install -e ".[solve]"      # adds commander_solve
-pip install -e ".[finance]"    # adds commander_finance (business case, pricing, pipeline, reporting)
-pip install -e ".[all]"        # all four
+pip install -e ".[product]"    # adds commander_product  — product lifecycle
+pip install -e ".[marketing]"  # adds commander_marketing — positioning, campaigns
+pip install -e ".[solve]"      # adds commander_solve    — problem-solving, decision intelligence
+pip install -e ".[finance]"    # adds commander_finance  — business case, pricing, pipeline
+pip install -e ".[comms]"      # adds commander_comms    — PR, crisis, ESG, events
+pip install -e ".[data]"       # adds commander_data     — data strategy, ML/LLMOps, pipelines
+pip install -e ".[ops]"        # adds commander_ops      — process, PMO, compliance (NIS2, AI Act)
+pip install -e ".[people]"     # adds commander_people   — org design, talent, comp, culture
+pip install -e ".[tech]"       # adds commander_tech     — architecture, DevOps, security
+pip install -e ".[all]"        # all nine
 ```
 
 Department imports in `commander.py` are guarded with `try/except ImportError`.
@@ -60,6 +66,7 @@ The constitution is re-read at the start of every `agency.*` command.
 
 ## Test architecture
 
-`tests/conftest.py` stubs both the OpenAI Agents SDK (`agents` module) AND the four
-department kits (`product_kit`, `marketing_kit`, `solve_kit`, `finance_kit`) so the full suite runs
+`tests/conftest.py` stubs both the OpenAI Agents SDK (`agents` module) AND all nine
+department kits (`product_kit`, `marketing_kit`, `solve_kit`, `finance_kit`, `comms_kit`,
+`data_kit`, `ops_kit`, `people_kit`, `tech_kit`) so the full suite runs
 offline without any API key.

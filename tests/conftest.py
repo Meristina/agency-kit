@@ -5,8 +5,9 @@ commander, which does ``from product_kit.commander import commander_product`` et
 
 Two layers of stubbing happen here, both BEFORE any test imports agency_kit:
   1. ``agents`` — the openai-agents SDK (Agent, WebSearchTool, Runner, function_tool).
-  2. The four department kits (product_kit / marketing_kit / solve_kit / finance_kit) and their
-     ``.commander`` submodules, each exposing ``commander_<dept>`` as an Agent instance.
+  2. All nine department kits (product_kit / marketing_kit / solve_kit / finance_kit /
+     comms_kit / data_kit / ops_kit / people_kit / tech_kit) and their ``.commander``
+     submodules, each exposing ``commander_<dept>`` as an Agent instance.
      agency_kit's commander imports these inside try/except; stubbing them lets the
      wired (all-departments-present) path run under test instead of the degraded "kit absent" path.
 
@@ -60,7 +61,7 @@ sys.modules["agents"] = _fake
 
 
 # ---------------------------------------------------------------------------
-# Layer 2 — the optional department kits (product / marketing / solve / finance)
+# Layer 2 — the optional department kits (all nine)
 #
 # agency_kit.commander does `from <dept>_kit.commander import commander_<dept>` inside try/except.
 # We stub each kit + its .commander submodule so the all-departments-present wiring path runs under
@@ -83,5 +84,5 @@ def _stub_department(name: str) -> None:
     sys.modules[f"{name}_kit.commander"] = cmd
 
 
-for _dept in ("product", "marketing", "solve", "finance"):
+for _dept in ("product", "marketing", "solve", "finance", "comms", "data", "ops", "people", "tech"):
     _stub_department(_dept)

@@ -71,7 +71,7 @@ def serialize_dossier(dossier: dict, project_root) -> Path:
 def run(goal: str, project_root: str = ".", steer: bool = False, parallel: bool = False) -> Path:
     """Headless run: drive the engine, then serialize. Needs openai-agents + a configured provider.
 
-    parallel=True runs product+solve concurrently (ThreadPoolExecutor) before marketing/finance.
+    parallel=True runs routed departments concurrently where possible (ThreadPoolExecutor).
     steer=True opens the interactive Direction Check gate before execution.
     """
     from agency_kit.mission import auto_proceed, console_direction_check

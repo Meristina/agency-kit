@@ -7,7 +7,7 @@
 
 ## 1. What it is
 
-**Agency-Kit** sits one level above the four department kits. It reads a mission goal,
+**Agency-Kit** sits one level above nine optional department kits. It reads a mission goal,
 classifies which departments to mobilise, runs them in order, combines their outputs
 into a single coherent deliverable, and submits it to a cross-department Inspector with
 veto power.
@@ -32,6 +32,11 @@ Two non-negotiable guarantees:
    ├─ 🎖️ commander_marketing   marketing-kit  (optional extra)
    ├─ 🎖️ commander_solve       solve-kit      (optional extra)
    ├─ 🎖️ commander_finance     finance-kit    (optional extra)
+   ├─ 🎖️ commander_comms       comms-kit      (optional extra)
+   ├─ 🎖️ commander_data        data-kit       (optional extra)
+   ├─ 🎖️ commander_ops         ops-kit        (optional extra)
+   ├─ 🎖️ commander_people      people-kit     (optional extra)
+   ├─ 🎖️ commander_tech        tech-kit       (optional extra)
    │
    └─ 🎖️ inspector_agency      cross-department quality gate (VETO power)
 ```
@@ -121,8 +126,11 @@ agency-kit/
 ### Phase 1 — EXECUTE (ordered pipeline, context carried forward)
 
 ```
-/agency.product $MISSION  →  /agency.marketing $MISSION  →  /agency.solve $MISSION  →  /agency.finance $MISSION
+/agency.product $MISSION   →  /agency.marketing $MISSION  →  /agency.solve $MISSION
+/agency.finance $MISSION   →  /agency.comms $MISSION      →  /agency.data $MISSION
+/agency.ops $MISSION       →  /agency.people $MISSION     →  /agency.tech $MISSION
 ```
+(only the departments in the route are executed, in order)
 
 Each department receives the goal **and all upstream `dept_outputs`**. Marketing
 inherits the product strategy; solve receives the full combined picture. No department
@@ -185,6 +193,11 @@ dept_outputs
   .marketing   → full marketing-kit deliverable
   .solve       → full solve-kit deliverable
   .finance     → full finance-kit deliverable
+  .comms       → full comms-kit deliverable
+  .data        → full data-kit deliverable
+  .ops         → full ops-kit deliverable
+  .people      → full people-kit deliverable
+  .tech        → full tech-kit deliverable
 synthesis      → deliverable.md summary (one voice)
 assumptions    → [ASSUMPTION] / confirmed / to verify
 decisions      → per phase — choice + one-line why
@@ -211,7 +224,7 @@ bash .agency/scripts/sh/install-claude.sh
 agency init <my-project> --agent claude
 ```
 
-`agency init` writes the 6 slash commands in the target harness's native format:
+`agency init` writes the slash commands in the target harness's native format:
 
 | Harness | Directory | Format |
 |---|---|---|
@@ -299,8 +312,14 @@ agency init <project> --agent claude  # scaffold into a project
 | `/agency.mission` | Orchestrator | Full loop: frame → execute → synthesize → audit |
 | `/agency.frame` | 0 | Clarify goal, classify departments, direction check |
 | `/agency.product` | 1a | Delegate to `commander_product`; carry upstream outputs |
-| `/agency.marketing` | 1b | Delegate to `commander_marketing`; inherit product output |
+| `/agency.marketing` | 1b | Delegate to `commander_marketing`; inherit upstream outputs |
 | `/agency.solve` | 1c | Delegate to `commander_solve`; receive full combined picture |
+| `/agency.finance` | 1d | Delegate to `commander_finance`; runs after upstream depts |
+| `/agency.comms` | 1e | Delegate to `commander_comms`; corporate comms & PR |
+| `/agency.data` | 1f | Delegate to `commander_data`; data strategy & ML/LLMOps |
+| `/agency.ops` | 1g | Delegate to `commander_ops`; process, compliance & PMO |
+| `/agency.people` | 1h | Delegate to `commander_people`; org design & talent |
+| `/agency.tech` | 1i | Delegate to `commander_tech`; architecture & DevOps |
 | `/agency.inspect` | 3 | Cross-dept FINAL audit: sources · ethics · consistency; veto |
 
 ---
@@ -333,7 +352,7 @@ agency init <project> --agent claude  # scaffold into a project
 
 ## 11. Adding a department kit (repeatable pattern)
 
-1. Build the department kit (`product-kit`, `marketing-kit`, `solve-kit`, `finance-kit`, or a new one).
+1. Build the department kit (any of the nine: `product-kit`, `marketing-kit`, `solve-kit`, `finance-kit`, `comms-kit`, `data-kit`, `ops-kit`, `people-kit`, `tech-kit`).
 2. Expose a `commander_<dept>` importable from the kit.
 3. In `agency_kit/commander.py`, add the guard:
    ```python

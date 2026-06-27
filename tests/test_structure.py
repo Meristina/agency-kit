@@ -1,7 +1,7 @@
 """Structural invariants for agency-kit — the meta-orchestrator wiring.
 
 Confirms the agency's spine is present and importable under the offline stub (conftest installs
-the `agents` SDK stub and the four department-kit stubs), and that the commander wires the router
+the `agents` SDK stub and all nine department-kit stubs), and that the commander wires the router
 and the inspector and guards its optional department imports.
 """
 
@@ -74,7 +74,7 @@ def test_sync_preflight_raises_when_kits_missing(tmp_path):
     payload = fake_root / "agency_cli" / "payload"
     payload.mkdir(parents=True)
 
-    import importlib, sys
+    import sys
     orig_root = sync_payload.repo_root
     orig_payload = sync_payload.payload_dir
     sync_payload.repo_root = lambda: fake_root
@@ -94,7 +94,10 @@ def test_sync_preflight_raises_when_kits_missing(tmp_path):
 
 def test_optional_kit_imports_guarded():
     from agency_kit import commander
-    for flag in ("_HAS_PRODUCT", "_HAS_MARKETING", "_HAS_SOLVE", "_HAS_FINANCE"):
+    for flag in (
+        "_HAS_PRODUCT", "_HAS_MARKETING", "_HAS_SOLVE", "_HAS_FINANCE",
+        "_HAS_COMMS", "_HAS_DATA", "_HAS_OPS", "_HAS_PEOPLE", "_HAS_TECH",
+    ):
         assert hasattr(commander, flag), f"optional department import not guarded (no {flag} flag)"
         assert isinstance(getattr(commander, flag), bool), f"{flag} should be a bool set by the try/except guard"
 
