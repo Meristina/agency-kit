@@ -18,15 +18,36 @@ Business decisions the data informs (→ product / finance / ops) · marketing a
 | Method | Area |
 |---|---|
 | Data mesh (Dehghani) | Architecture |
-| Lakehouse (Databricks / Delta Lake) | Architecture |
+| Lakehouse (Databricks / Delta Lake / Apache Iceberg / Hudi) | Architecture |
 | dbt (data build tool) | Transformation |
-| Data contracts (Andrew Jones) | Governance |
+| Data contracts (Andrew Jones / Soda) | Governance |
 | Great Expectations / Monte Carlo | Data quality |
-| MLflow / Weights & Biases | ML lifecycle |
-| RAG (Retrieval-Augmented Generation) | LLMOps |
+| MLflow / Kubeflow / SageMaker | ML lifecycle |
+| RAGOps — RAG lifecycle mgmt (ingest → verify → update) | LLMOps |
+| Vector databases (Pinecone / Weaviate / pgvector) | LLMOps |
 | Feature store (Feast / Tecton) | ML serving |
 | Kimball dimensional modelling | Warehouse design |
 | DAMA-DMBOK | Data governance |
+| Apache Kafka / Confluent | Streaming |
+| Fivetran / Airbyte (EL standardised) | Ingestion |
+
+## Terrain Research — Verified Facts (2025-2026)
+
+**RAGOps as a distinct discipline (ArXiv 2506.03401, June 2025 — 2-1, medium confidence):**
+- RAGOps extends LLMOps by adding a **dedicated data lifecycle** for RAG systems: ingest → verify → update
+- LLMOps as previously defined did not adequately address **maintenance of evolving external knowledge sources**
+- RAG pipelines and their data operations are **first-class data engineering concerns**, not simple MLOps extensions
+
+**LLMs as structural driver of enterprise API demand (Gartner, March 2024 — 3-0):**
+- **>30% of enterprise API demand growth by 2026 will come from AI tools and LLM applications** (Gartner press release, 20 March 2024 — direct title match, unanimous 3-0)
+- Signal: vector databases, embedding APIs, retrieval layers = **priority data-kit components**
+
+**Architecture consensus (technical, not statistical — no single stat verified, but stack is industry consensus):**
+- Lakehouse (Delta Lake, Apache Iceberg, Hudi) = dominant pattern for unifying warehouse + lake
+- dbt = de facto standard for analytical transformation (SQL-based, version-controlled)
+- Apache Airflow = reference pipeline orchestration (Astronomer + MWAA + GCP Composer)
+- Databricks / Snowflake / BigQuery = triumvirate lakehouse/warehouse
+- ⚠️ "73% dbt adoption" → **refuted 0-3** (source unidentifiable — do not cite this stat)
 
 ## Sourcing Rules
 - Pipeline benchmarks → cite tool documentation or vendor benchmarks (state version/date).

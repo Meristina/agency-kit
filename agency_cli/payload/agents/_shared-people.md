@@ -18,15 +18,36 @@ Financial compensation modelling at company P&L level (→ finance) · security/
 | Method | Area |
 |---|---|
 | 9-box talent grid | Succession |
+| Team Topologies (Skelton & Pais — 4 team types) | Org design |
 | Span of control design (Kesler & Kates) | Org design |
+| Skills-based org architecture | Talent acquisition / L&D |
 | 70/20/10 learning model | L&D |
 | OKR calibration (Grove, 0.6–0.7 norm) | Performance |
-| Radford / Mercer / WTW benchmarking | Compensation |
-| Korn Ferry job levelling | Job architecture |
+| Radford McLagan / Mercer / WTW benchmarking | Compensation |
+| Korn Ferry 5-Stage Framework (job architecture → compensation) | Compensation design |
 | eNPS + Gallup Q12 | Engagement |
 | Rooney Rule / structured interviewing | Inclusive hiring |
 | Pay equity audit (Payscale / Syndio) | DEI |
-| Attrition survival analysis | People analytics |
+| EU Directive 2023/970 (pay transparency — 5% threshold) | DEI / compliance |
+| Attrition survival analysis (SHAP explainability) | People analytics |
+
+## Terrain Research — Verified Facts (2025-2026)
+These are adversarially verified (3-0) and should ground any benchmarking work:
+
+**Skills-based organisation (Mercer 2025/2026 — 3-0, 1,100 CHROs, 74 countries):**
+- **55%** of organisations now map competencies directly to roles (was 47% in 2023, **+8 pts in 2 years**)
+- Skills-based org moved from **8th to 3rd priority** for CHROs in 2025
+
+**AI in HR (SHRM State of AI in HR 2026 — 3-0, 1,722 HR professionals, Dec 2025):**
+- **57%** of HR AI adopters report mainly **upskilling/reskilling** outcomes
+- Only **7%** report slight job destruction; **24%** report new role creation; **39%** role shifts
+- Fastest-growing AI-native roles (Aon Radford McLagan, Mar 2026): ML engineers, applied data scientists, AI platform engineers — command significant salary premiums
+
+**EU Pay Transparency — Directive 2023/970 (3-0):**
+- **Transposition deadline: 7 June 2026**
+- Gender pay gap **>5% per job category** triggers mandatory joint assessment with worker representatives
+- Job ads must include salary ranges; employees have right to request pay benchmarks
+- **Prerequisite:** Korn Ferry 5-Stage Framework — job architecture (Stage 3) must exist before compensation policy (Stage 4)
 
 ## Jurisdiction Flags for People
 Employment law, termination rules, works council rights, and pay-equity obligations vary sharply by country. When `AK_JURISDICTION` is set, load:

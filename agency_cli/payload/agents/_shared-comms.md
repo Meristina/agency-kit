@@ -20,11 +20,28 @@ Paid media / advertising (→ marketing) · brand visual identity (→ marketing
 | RHC matrix (Risk / Hold / Communicate) | Crisis |
 | Dark-site protocol | Crisis |
 | 3-message rule | Press briefing |
-| CSRD (Corporate Sustainability Reporting Directive) | ESG |
+| CSRD (Directive 2022/2464, as amended by Directive 2026/470) | ESG |
 | GRI Standards (Global Reporting Initiative) | ESG |
 | SASB (Sustainability Accounting Standards Board) | ESG |
-| Lobbying registry compliance | Public affairs |
+| Lobbying registry compliance (EU Transparency Register; HATVP in FR) | Public affairs |
 | Chatham House Rule | Events |
+
+## Crisis Response Benchmarks (consensus 2025-2026)
+Operationally validated across Telum Media, Talkwalker, 5WPR, CEO United Partners:
+- **30–60 min** — assemble crisis cell after detection
+- **2 hours** — first public statement; **4 hours** — detailed update
+- **30-min updates** on ≥2 channels during active crisis
+- Minimum **3 communications in 24 hours**
+- 24h silence = accelerant for speculation and disinformation
+- AI-based crisis simulation is now "a standard planning expectation" (2025)
+- Virality benchmark: Coldplay kiss-cam → **77M TikTok views in 24h** (2025) — illustrates escalation speed
+
+## ESG / CSRD — Post-Omnibus I Status (⚠️ verify scope before engagement)
+**Directive (EU) 2026/470** (OJ 26 Feb 2026, in force **18 March 2026**) fundamentally changed the CSRD landscape:
+- **New scope:** >1,000 employees AND >€450M net turnover → **~5,000 companies** (was ~50,000; -90%)
+- **ESRS data points: reduced >70%** (EFRAG, Dec 2025) — focus on narrative quality over data volume
+- **CSDDD** (supply chain due diligence): threshold raised to >5,000 employees AND >€1.5B; delayed to **26 July 2029**
+- **~45,000 newly exempt companies**: voluntary frameworks (GRI, B Corp, SBTi, ISO 14001) have become an active communications asset; **77% of CFOs** maintain/increase sustainability investment anyway (BDO, Feb 2025); **78% of investors** say sustainability metrics improve confidence (PwC, 2025)
 
 ## Jurisdiction Flags for Comms
 Different markets carry different disclosure / press-law requirements. When `AK_JURISDICTION` is set, load the corresponding file:
