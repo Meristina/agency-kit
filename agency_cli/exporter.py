@@ -1,0 +1,93 @@
+"""Export a mission deliverable to PDF.
+
+WeasyPrint (pure Python, HTML → PDF) — no ATS constraints, just clean layout.
+Optional dependency: `pip install -e "[pdf]"`.
+
+Strips the YAML front-matter added by store.save() before converting to HTML.
+"""
+
+import sys
+from pathlib import Path
+
+
+def export_pdf(mission_id: str) -> Path:
+    """Convert ~/.agency/missions/<mission_id>/deliverable.md to PDF.
+
+    Returns the path to the generated PDF. Raises FileNotFoundError if the
+    deliverable doesn't exist, ImportError if WeasyPrint/Markdown aren't installed.
+    """
+    try:
+        import weasyprint
+    except ImportError:
+        raise ImportError('WeasyPrint not installed. Run:  pip install -e ".[pdf]"')
+
+    try:
+        import markdown as _md
+    except ImportError:
+        raise ImportError('Markdown not installed. Run:  pip install -e ".[pdf]"')
+
+    from agency_kit.store import missions_dir
+
+    md_path = missions_dir() / mission_id / "deliverable.md"
+    if not md_path.exists():
+        raise FileNotFoundError(f"deliverable.md not found for mission: {mission_id}")
+
+    content = md_path.read_text(encoding="utf-8")
+
+    # Strip YAML front-matter written by store.save()
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            content = parts[2].strip()
+
+    html_body = _md.markdown(content, extensions=["tables", "fenced_code"])
+    html = _wrap_html(html_body)
+
+    out = md_path.parent / "deliverable.pdf"
+    weasyprint.HTML(string=html).write_pdf(str(out))
+    return out
+
+
+def _wrap_html(body: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {{
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.65;
+      color: #1a1a1a;
+    }}
+    h1 {{ font-size: 19pt; color: #111; border-bottom: 2px solid #333; padding-bottom: 5px; margin-top: 0; }}
+    h2 {{ font-size: 14pt; color: #222; margin-top: 22px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }}
+    h3 {{ font-size: 12pt; color: #333; margin-top: 16px; }}
+    h4 {{ font-size: 11pt; color: #444; margin-top: 12px; }}
+    table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }}
+    th, td {{ border: 1px solid #ccc; padding: 6px 10px; text-align: left; vertical-align: top; }}
+    th {{ background: #f2f2f2; font-weight: 600; }}
+    tr:nth-child(even) td {{ background: #fafafa; }}
+    code {{ background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-size: 9.5pt; font-family: 'Courier New', monospace; }}
+    pre {{ background: #f4f4f4; padding: 12px; border-radius: 4px; overflow: auto; font-size: 9.5pt; }}
+    pre code {{ background: none; padding: 0; }}
+    blockquote {{ border-left: 3px solid #aaa; margin: 0 0 12px 0; padding: 4px 0 4px 16px; color: #555; }}
+    ul, ol {{ padding-left: 20px; }}
+    li {{ margin-bottom: 3px; }}
+    a {{ color: #0055aa; }}
+    hr {{ border: none; border-top: 1px solid #ddd; margin: 16px 0; }}
+    @page {{
+      size: A4;
+      margin: 2cm 2.2cm 2.2cm 2.2cm;
+      @bottom-right {{
+        content: counter(page) " / " counter(pages);
+        font-size: 9pt;
+        color: #999;
+      }}
+    }}
+  </style>
+</head>
+<body>
+{body}
+</body>
+</html>"""

@@ -26,6 +26,7 @@ from agents import Runner
 
 from .mission import (
     new_dossier, parse_verdict, extract_required_fixes, auto_proceed, MAX_ITERS,
+    _is_quota_error,
 )
 from .commander import agency_commander
 from .inspector import agency_inspector
@@ -105,7 +106,12 @@ def _execute_departments(route: list, goal: str) -> dict:
             }
             for fut in as_completed(futures):
                 dept = futures[fut]
-                dept_outputs[dept] = fut.result()
+                try:
+                    dept_outputs[dept] = fut.result()
+                except Exception as exc:
+                    if _is_quota_error(exc):
+                        raise  # caught in run_parallel_mission
+                    raise
                 print(f"  [parallel] {dept} done ({len(dept_outputs[dept])} chars)")
     elif parallel:
         dept = parallel[0]
@@ -173,13 +179,33 @@ def run_parallel_mission(goal: str, dc_fn=auto_proceed) -> dict:
             continue
 
         # Execute — parallel stage 1, sequential stage 2+
-        dept_outputs = _execute_departments(dossier["route"], goal)
+        try:
+            dept_outputs = _execute_departments(dossier["route"], goal)
+        except Exception as exc:
+            if _is_quota_error(exc):
+                dossier["status"] = "paused_rate_limit"
+                dossier["paused_reason"] = str(exc)
+                store.save(dossier)
+                print(f"\n[quota] Session limit reached during department execution — mission saved.")
+                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
+                return dossier
+            raise
         dossier["dept_outputs"].update(dept_outputs)
 
         # Synthesis via agency commander (combining role only, not orchestration)
-        synthesis_result = Runner.run_sync(
-            agency_commander, _synthesis_brief(dossier, dept_outputs, required_fixes)
-        )
+        try:
+            synthesis_result = Runner.run_sync(
+                agency_commander, _synthesis_brief(dossier, dept_outputs, required_fixes)
+            )
+        except Exception as exc:
+            if _is_quota_error(exc):
+                dossier["status"] = "paused_rate_limit"
+                dossier["paused_reason"] = str(exc)
+                store.save(dossier)
+                print(f"\n[quota] Session limit reached during synthesis — mission paused and saved.")
+                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
+                return dossier
+            raise
         deliverable = synthesis_result.final_output
         dossier["previous_synthesis"] = deliverable
         dossier["decisions"].append({
@@ -192,13 +218,23 @@ def run_parallel_mission(goal: str, dc_fn=auto_proceed) -> dict:
         store.save(dossier)
 
         # Inspect
-        inspection = Runner.run_sync(
-            agency_inspector,
-            "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
-            "(sources / ethics & compliance / cross-department consistency) and end with a clear "
-            "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
-            "lines, each naming the departments involved:\n\n" + deliverable,
-        )
+        try:
+            inspection = Runner.run_sync(
+                agency_inspector,
+                "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
+                "(sources / ethics & compliance / cross-department consistency) and end with a clear "
+                "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
+                "lines, each naming the departments involved:\n\n" + deliverable,
+            )
+        except Exception as exc:
+            if _is_quota_error(exc):
+                dossier["status"] = "paused_rate_limit"
+                dossier["paused_reason"] = str(exc)
+                store.save(dossier)
+                print(f"\n[quota] Session limit reached during inspect — mission saved.")
+                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
+                return dossier
+            raise
         verdict = parse_verdict(inspection.final_output)
         required_fixes = extract_required_fixes(inspection.final_output)
         if verdict != "PASS" and not required_fixes:

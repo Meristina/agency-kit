@@ -125,6 +125,40 @@ def test_resume_mission_importable():
 # doctrine, but agency_cli/payload/agents/router-agency.md is a committed mirror.
 # A direct edit to agents/ without running `agency sync` ships divergent doctrine.
 
+# ---- departments.py — single source of truth --------------------------------
+# Bug surface: department names scattered across router, commander, inspector,
+# and CLI; a new department added in one place but missed in another is silent.
+
+def test_departments_module_importable():
+    from agency_kit.departments import DEPT_NAMES, VALID_DEPTS, dept_list_text
+    assert len(DEPT_NAMES) == 9
+    assert VALID_DEPTS == frozenset(DEPT_NAMES)
+    text = dept_list_text()
+    for name in DEPT_NAMES:
+        assert name in text, f"dept_list_text() missing '{name}'"
+
+
+def test_dept_installed_keys_match_dept_names():
+    from agency_kit.departments import DEPT_NAMES
+    from agency_kit.commander import DEPT_INSTALLED
+    assert set(DEPT_INSTALLED.keys()) == set(DEPT_NAMES), (
+        "DEPT_INSTALLED keys in commander.py are out of sync with DEPT_NAMES in departments.py"
+    )
+
+
+def test_router_uses_shared_valid_depts():
+    from agency_kit.departments import VALID_DEPTS
+    from agency_kit.router import VALID_DEPTS as ROUTER_VALID_DEPTS
+    assert ROUTER_VALID_DEPTS is VALID_DEPTS, (
+        "router.py must import VALID_DEPTS from departments.py, not define its own frozenset"
+    )
+
+
+# ---- payload sync drift guard -----------------------------------------------
+# Bug surface: agents/router-agency.md is the single source of truth for routing
+# doctrine, but agency_cli/payload/agents/router-agency.md is a committed mirror.
+# A direct edit to agents/ without running `agency sync` ships divergent doctrine.
+
 def test_payload_router_matches_source():
     source = ROOT / "agents" / "router-agency.md"
     mirror = ROOT / "agency_cli" / "payload" / "agents" / "router-agency.md"

@@ -16,7 +16,7 @@ One CLI (`agency`), one inspector (`inspector_agency`), one mission loop.
 | `agency_kit/mission.py` | `run_mission()` — control loop + direction check |
 | `agency_kit/models.py` | `ELITE` / `STANDARD` via `AK_ELITE_MODEL` / `AK_STANDARD_MODEL` |
 | `agency_kit/web.py` | `web_tools()` — search backend, selected by `AK_SEARCH` |
-| `agency_cli/cli.py` | `agency init / run / check` entry point |
+| `agency_cli/cli.py` | `agency init / run / check / missions / resume / sync / batch / tui / export` entry point |
 | `agents/commander-agency.md` | Commander operating doctrine (prose) |
 | `agents/router-agency.md` | Router doctrine + JSON output format |
 | `agents/inspector-agency.md` | Inspector 3-check doctrine |
@@ -27,7 +27,7 @@ One CLI (`agency`), one inspector (`inspector_agency`), one mission loop.
 
 ```bash
 pip install -e ".[dev]"
-pytest tests/ -v          # 37 tests, offline (SDK stubbed in conftest.py)
+pytest tests/ -v          # offline (SDK stubbed in conftest.py)
 ```
 
 ## Environment variables

@@ -28,6 +28,7 @@ notes the gap, never fabricating its output.
 
 from agents import Agent
 
+from .departments import DEPT_NAMES, dept_list_text
 from .models import ELITE
 from .web import web_tools
 from .inspector import agency_inspector
@@ -106,7 +107,11 @@ except ImportError:
 # COMMANDER INSTRUCTIONS
 # ===========================================================================
 
-COMMANDER_INSTRUCTIONS = """
+# Department list generated from departments.py — single source of truth.
+_COMMANDER_DEPT_BLOCK = dept_list_text()
+
+COMMANDER_INSTRUCTIONS = (
+    """
 You are the agency commander, the meta-orchestrator of the AI Agency. You sit
 one level above the department commanders. You do NOT do product work, marketing
 work, or problem-solving work yourself. You classify the mission, deploy the
@@ -115,17 +120,11 @@ context into the next, synthesise one cross-department deliverable, and submit
 it to the agency inspector before anything ships.
 
 You command nine optional departments and one cross-department auditor:
-  - classify  (router_agency)       -> which departments the mission needs
-  - product   (commander_product)   -> full product lifecycle (product-kit)
-  - marketing (commander_marketing) -> positioning, content, campaigns (marketing-kit)
-  - solve     (commander_solve)     -> problem-solving, decision intelligence (solve-kit)
-  - finance   (commander_finance)   -> viability, pricing, pipeline, closing, reporting (finance-kit)
-  - comms     (commander_comms)     -> corporate comms, PR/media, crisis, public affairs, ESG, events (comms-kit)
-  - data      (commander_data)      -> data strategy, engineering, analytics, ML/LLMOps, data products (data-kit)
-  - ops       (commander_ops)       -> process optimisation, PMO, procurement B2G, risk, compliance (ops-kit)
-  - people    (commander_people)    -> org design, talent, L&D, performance, culture, people analytics (people-kit)
-  - tech      (commander_tech)      -> architecture, DevOps, security, engineering excellence, build-vs-buy (tech-kit)
-  - inspect   (inspector_agency)    -> cross-department quality gate (mandatory)
+  - classify  (router_agency)    -> which departments the mission needs
+"""
+    + _COMMANDER_DEPT_BLOCK
+    + """
+  - inspect   (inspector_agency) -> cross-department quality gate (mandatory)
 
 A department tool is present ONLY when its kit is installed. If a routed
 department's tool is absent, route around it and record the gap in the dossier.
@@ -255,6 +254,7 @@ PRINCIPLES:
   uninstalled-department gaps explicitly.
 - Mirror the user's language.
 """
+)
 
 
 # ===========================================================================
@@ -424,6 +424,18 @@ agency_commander = Agent(
         *web_tools(),
     ],
 )
+
+
+# Exported for CLI --dry-run: maps dept name → True if the kit is installed.
+# Built from DEPT_NAMES so order and keys are always in sync with departments.py.
+DEPT_INSTALLED: dict = {
+    name: installed
+    for name, installed in zip(
+        DEPT_NAMES,
+        (_HAS_PRODUCT, _HAS_MARKETING, _HAS_SOLVE, _HAS_FINANCE,
+         _HAS_COMMS, _HAS_DATA, _HAS_OPS, _HAS_PEOPLE, _HAS_TECH),
+    )
+}
 
 
 # ===========================================================================

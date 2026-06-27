@@ -26,6 +26,7 @@ Run:  python -m agency_kit.mission "Describe the cross-department mission here"
 """
 
 import json
+import re
 import sys
 
 from agents import Runner
@@ -33,6 +34,16 @@ from agents import Runner
 from .commander import agency_commander
 from .inspector import agency_inspector
 from .router import classify
+
+_QUOTA_PAT = re.compile(
+    r"session\s*limit|usage\s*limit|resets?\s+\d+:\d+\s*[ap]m|quota\s*exceeded|rate\s*limit",
+    re.IGNORECASE,
+)
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    return bool(_QUOTA_PAT.search(str(exc)))
+
 
 MAX_ITERS = 3  # iteration cap — deliver-with-residual-risk rather than thrash forever
 
@@ -258,7 +269,17 @@ def _mission_loop(dossier: dict, required_fixes: list, deliverable: str, dc_fn) 
             continue
 
         # ── EXECUTE: the agency commander routes, deploys, and synthesises ─
-        mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))
+        try:
+            mission_result = Runner.run_sync(agency_commander, agency_brief(dossier, required_fixes))
+        except Exception as exc:
+            if _is_quota_error(exc):
+                dossier["status"] = "paused_rate_limit"
+                dossier["paused_reason"] = str(exc)
+                store.save(dossier)
+                print(f"\n[quota] Session limit reached — mission paused and saved.")
+                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
+                return dossier
+            raise
         deliverable = mission_result.final_output
         dossier["previous_synthesis"] = deliverable
         dossier["decisions"].append({
@@ -270,13 +291,23 @@ def _mission_loop(dossier: dict, required_fixes: list, deliverable: str, dc_fn) 
         store.save(dossier)  # checkpoint after each commander run
 
         # ── INSPECT: FINAL cross-department audit ──────────────────────────
-        inspection = Runner.run_sync(
-            agency_inspector,
-            "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
-            "(sources / ethics & compliance / cross-department consistency) and end with a clear "
-            "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
-            "lines, each naming the departments involved:\n\n" + deliverable,
-        )
+        try:
+            inspection = Runner.run_sync(
+                agency_inspector,
+                "MODE: FINAL. Run the cross-department audit on this synthesised deliverable "
+                "(sources / ethics & compliance / cross-department consistency) and end with a clear "
+                "verdict line — PASS, PASS WITH FIXES, or VETO — plus the required fixes as bullet "
+                "lines, each naming the departments involved:\n\n" + deliverable,
+            )
+        except Exception as exc:
+            if _is_quota_error(exc):
+                dossier["status"] = "paused_rate_limit"
+                dossier["paused_reason"] = str(exc)
+                store.save(dossier)
+                print(f"\n[quota] Session limit reached during inspect — mission saved.")
+                print(f"  Resume with:  agency resume {dossier.get('mission_id', '<id>')}")
+                return dossier
+            raise
         verdict = parse_verdict(inspection.final_output)
         required_fixes = extract_required_fixes(inspection.final_output)
         if verdict != "PASS" and not required_fixes:

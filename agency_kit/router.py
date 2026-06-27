@@ -13,30 +13,18 @@ keyword heuristic — and ultimately to ``["product"]`` — if parsing fails.
 
 from agents import Agent
 
+from .departments import VALID_DEPTS, dept_list_text
 from .models import STANDARD
 from .web import web_tools
 
-ROUTER_INSTRUCTIONS = """\
-You are the Agency Router — a fast, single-call classification agent. You do not
-build, write, or solve anything. You read the mission goal and decide which
-department(s) to deploy and in what order.
-
-There are exactly nine departments:
-  - product   : feature discovery, roadmaps, JTBD, PMF, prioritization, specs, scope.
-  - marketing : campaigns, content, positioning, messaging, launch comms, SEO, brand, ads.
-  - solve     : debugging, architecture, algorithms, technical implementation, fixes, refactors.
-  - finance   : business case, financial modeling, pricing, P&L, cash flow, commercial pipeline,
-                closing, account management, investor reporting, revenue operations.
-  - comms     : corporate communications, PR/media relations, press releases, crisis management,
-                public affairs B2G, ESG/CSRD reporting, events & experiential.
-  - data      : data strategy, data engineering, analytics/BI, ML/LLMOps, data quality,
-                data products, RAG pipelines, semantic layer.
-  - ops       : process optimisation, PMO, procurement B2G, EU regulatory compliance
-                (NIS2, AI Act, DORA ICT, CSDDD), risk mapping, lean/VSM, BCP.
-  - people    : org design, talent acquisition & sourcing, L&D, performance & compensation,
-                pay equity, DEI, culture, people analytics, succession planning.
-  - tech      : software architecture (C4, ADR), DevOps/IaC, security (OWASP, SOC2, zero trust,
-                threat modeling), engineering excellence, build-vs-buy, DORA metrics, FinOps.
+# Department list is generated from departments.py — single source of truth.
+ROUTER_INSTRUCTIONS = (
+    "You are the Agency Router — a fast, single-call classification agent. You do not\n"
+    "build, write, or solve anything. You read the mission goal and decide which\n"
+    "department(s) to deploy and in what order.\n\n"
+    "There are exactly nine departments:\n"
+    + dept_list_text()
+    + """
 
 ROUTING DOCTRINE
 
@@ -74,7 +62,7 @@ Cross-department pipelines (ordered — earlier department runs first):
   - "build and scale data platform"         -> ["data", "tech"]
 
 Ordering rules:
-  product → marketing → solve → finance → comms → data → ops → people → tech
+  product -> marketing -> solve -> finance -> comms -> data -> ops -> people -> tech
   Each department inherits all prior outputs as context; it does not re-derive
   upstream work. Adjust order only when domain logic demands it (e.g. tech
   before people when building the team around a tech architecture decision).
@@ -105,6 +93,7 @@ Output ONLY a single JSON object — no prose, no markdown fences, no preamble:
     at least one entry, in execution order.
   - rationale: one line explaining the routing decision.
 """
+)
 
 router_agent = Agent(
     name="router_agency",
@@ -113,38 +102,9 @@ router_agent = Agent(
     tools=web_tools(),
 )
 
-_VALID_DEPTS = frozenset({
-    "product", "marketing", "solve", "finance",
-    "comms", "data", "ops", "people", "tech",
-})
 
-
-def classify(goal: str) -> list:
-    """Run the router agent and return ordered list of department names.
-
-    Falls back to ["product"] on parse error. Runs synchronously."""
-    import json
-
-    from agents import Runner
-
-    result = Runner.run_sync(router_agent, goal)
-    text = result.final_output or ""
-
-    # Try JSON parse first
-    try:
-        import re
-
-        m = re.search(r'\{[^}]+\}', text, re.DOTALL)
-        if m:
-            data = json.loads(m.group())
-            depts = data.get("departments", [])
-            valid = [d for d in depts if d in _VALID_DEPTS]
-            if valid:
-                return valid
-    except json.JSONDecodeError:
-        pass
-
-    # Keyword fallback
+def _keyword_classify(goal: str) -> list:
+    """Keyword fallback — no API call. Used by classify() and --dry-run."""
     lower = goal.lower()
     padded = f" {lower} "  # word-boundary guard for short tokens (bi, ml)
     depts = []
@@ -192,3 +152,32 @@ def classify(goal: str) -> list:
     )):
         depts.append("tech")
     return depts or ["product"]
+
+
+def classify(goal: str) -> list:
+    """Run the router agent and return ordered list of department names.
+
+    Falls back to ["product"] on parse error. Runs synchronously."""
+    import json
+
+    from agents import Runner
+
+    result = Runner.run_sync(router_agent, goal)
+    text = result.final_output or ""
+
+    # Try JSON parse first
+    try:
+        import re
+
+        m = re.search(r'\{[^}]+\}', text, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            depts = data.get("departments", [])
+            valid = [d for d in depts if d in VALID_DEPTS]
+            if valid:
+                return valid
+    except json.JSONDecodeError:
+        pass
+
+    # Keyword fallback
+    return _keyword_classify(goal)

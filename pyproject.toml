@@ -27,6 +27,8 @@ gemini = ["google-genai"]
 tavily = ["tavily-python>=0.7.0"]
 ddg = ["ddgs"]
 litellm = ["openai-agents[litellm]"]
+pdf = ["weasyprint", "Markdown"]
+tui = ["textual>=0.47.0"]
 
 [project.scripts]
 agency = "agency_cli.cli:main"

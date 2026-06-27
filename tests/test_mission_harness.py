@@ -250,3 +250,114 @@ def test_parallel_happy_path(monkeypatch):
     assert d["verdicts"][-1]["verdict"] == "PASS"
     assert d["dept_outputs"].get("product") == "PRODUCT OUT"
     assert d["decisions"][0]["execution_mode"] == "parallel"
+
+
+# ---- quota / rate-limit handling -------------------------------------------
+# Bug surface: Runner.run_sync in mission.py (commander + inspector) and in
+# parallel.py (dept execution, synthesis, inspect) were not wrapped; a quota
+# error crashed the mission instead of saving state and printing resume instructions.
+
+class _QuotaRunner:
+    """Returns scripted outputs for the first N calls, then raises a quota error."""
+
+    def __init__(self, ok_outputs, fail_on):
+        self.outputs = list(ok_outputs)
+        self.fail_on = fail_on
+        self.calls = 0
+
+    def run_sync(self, agent, inp):
+        n = self.calls
+        self.calls += 1
+        if n >= self.fail_on:
+            raise RuntimeError("session limit reached — resets 5:00 am")
+        return _Result(self.outputs[n])
+
+
+def test_mission_quota_during_commander(monkeypatch):
+    _stub_classify(monkeypatch)
+    import agency_kit.store as st
+    saved = {}
+    monkeypatch.setattr(st, "save", lambda d: saved.update(d))
+    runner = _QuotaRunner(ok_outputs=[], fail_on=0)
+    monkeypatch.setattr(mission, "Runner", runner)
+
+    d = mission.run_mission("goal")
+    assert d.get("status") == "paused_rate_limit", "quota during commander must set paused status"
+    assert "paused_reason" in d
+    assert saved.get("status") == "paused_rate_limit", "dossier must be saved on quota pause"
+
+
+def test_mission_quota_during_inspector(monkeypatch):
+    _stub_classify(monkeypatch)
+    import agency_kit.store as st
+    saved = {}
+    monkeypatch.setattr(st, "save", lambda d: saved.update(d))
+    runner = _QuotaRunner(ok_outputs=["COMMANDER OUTPUT"], fail_on=1)
+    monkeypatch.setattr(mission, "Runner", runner)
+
+    d = mission.run_mission("goal")
+    assert d.get("status") == "paused_rate_limit", "quota during inspector must set paused status"
+    assert saved.get("status") == "paused_rate_limit"
+
+
+def test_parallel_quota_during_dept(monkeypatch):
+    from agency_kit import parallel
+    import agency_kit.store as st
+
+    saved = {}
+    monkeypatch.setattr(st, "save", lambda d: saved.update(d))
+    monkeypatch.setattr(parallel, "classify", lambda g: ["product"])
+    runner = _QuotaRunner(ok_outputs=[], fail_on=0)
+    monkeypatch.setattr(parallel, "Runner", runner)
+
+    d = parallel.run_parallel_mission("goal")
+    assert d.get("status") == "paused_rate_limit", "quota during dept must pause the parallel mission"
+    assert saved.get("status") == "paused_rate_limit"
+
+
+def test_parallel_quota_during_synthesis(monkeypatch):
+    from agency_kit import parallel
+    import agency_kit.store as st
+
+    saved = {}
+    monkeypatch.setattr(st, "save", lambda d: saved.update(d))
+    monkeypatch.setattr(parallel, "classify", lambda g: ["product"])
+    # Call 0: dept (product) succeeds; call 1: synthesis raises quota
+    runner = _QuotaRunner(ok_outputs=["PRODUCT OUT"], fail_on=1)
+    monkeypatch.setattr(parallel, "Runner", runner)
+
+    d = parallel.run_parallel_mission("goal")
+    assert d.get("status") == "paused_rate_limit", "quota during synthesis must pause the parallel mission"
+    assert d["dept_outputs"].get("product") == "PRODUCT OUT", "dept output should be preserved before pause"
+
+
+def test_parallel_quota_during_inspect(monkeypatch):
+    from agency_kit import parallel
+    import agency_kit.store as st
+
+    saved = {}
+    monkeypatch.setattr(st, "save", lambda d: saved.update(d))
+    monkeypatch.setattr(parallel, "classify", lambda g: ["product"])
+    # Calls 0-1 succeed (dept + synthesis); call 2 (inspect) raises quota
+    runner = _QuotaRunner(ok_outputs=["PRODUCT OUT", "SYNTHESIS OUT"], fail_on=2)
+    monkeypatch.setattr(parallel, "Runner", runner)
+
+    d = parallel.run_parallel_mission("goal")
+    assert d.get("status") == "paused_rate_limit", "quota during inspect must pause the parallel mission"
+    assert saved.get("status") == "paused_rate_limit"
+
+
+# ---- store.new_mission_id atomic lock ---------------------------------------
+# Bug surface: two parallel batch workers calling new_mission_id concurrently
+# would not deadlock after the lock was added, but would the lock be released?
+
+def test_new_mission_id_lock_not_leaked(tmp_path, monkeypatch):
+    import agency_kit.store as st
+    monkeypatch.setattr(st, "_agency_dir", lambda: tmp_path)
+
+    id1 = st.new_mission_id("first goal")
+    id2 = st.new_mission_id("first goal")  # must not deadlock
+
+    assert id1.endswith("-first-goal"), f"unexpected ID format: {id1}"
+    assert id2.endswith("-first-goal"), f"unexpected ID format: {id2}"
+    assert not (tmp_path / ".mission-id.lock").exists(), "lock directory must be removed after use"

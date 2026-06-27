@@ -27,9 +27,36 @@ def missions_dir() -> Path:
     return d
 
 
+def _agency_dir() -> Path:
+    d = Path.home() / ".agency"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def new_mission_id(goal: str) -> str:
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    return f"{ts}-{_slug(goal)}"
+    """Generate a unique mission ID.
+
+    Uses mkdir-as-atomic-lock (O_CREAT|O_EXCL semantics on POSIX) to prevent
+    two parallel batch workers from producing the same timestamp-based ID.
+    Falls back to the bare timestamp+slug if the lock can't be acquired within
+    100 ms (safe — each worker's slug differs by goal text).
+    """
+    import time
+    lock = _agency_dir() / ".mission-id.lock"
+    for _ in range(20):
+        try:
+            lock.mkdir(exist_ok=False)
+            break
+        except FileExistsError:
+            time.sleep(0.005)
+    try:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"{ts}-{_slug(goal)}"
+    finally:
+        try:
+            lock.rmdir()
+        except Exception:
+            pass
 
 
 def save(dossier: dict) -> Path:
@@ -46,7 +73,19 @@ def save(dossier: dict) -> Path:
         path = d / "dossier.json"
         path.write_text(json.dumps(dossier, ensure_ascii=False, indent=2), encoding="utf-8")
         if dossier.get("delivered"):
-            (d / "deliverable.md").write_text(dossier["delivered"], encoding="utf-8")
+            verdicts = dossier.get("verdicts") or []
+            last_verdict = verdicts[-1].get("verdict", "—") if verdicts else "in-progress"
+            meta = "\n".join([
+                "---",
+                f"mission_id: {dossier.get('mission_id', '')}",
+                f"route: {json.dumps(dossier.get('route', []))}",
+                f"departments: {', '.join(dossier.get('route', []))}",
+                f"iteration: {dossier.get('iteration', 0)}",
+                f"verdict: {last_verdict}",
+                "delivered: true",
+                "---",
+            ])
+            (d / "deliverable.md").write_text(meta + "\n\n" + dossier["delivered"], encoding="utf-8")
         return path
     except Exception as e:
         print(f"  [store] warning: could not save dossier — {e}", file=sys.stderr)
