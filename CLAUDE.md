@@ -14,12 +14,18 @@ One CLI (`agency`), one inspector (`inspector_agency`), one mission loop.
 | `agency_kit/commander.py` | `agency_commander` — meta-orchestrator (ELITE) |
 | `agency_kit/inspector.py` | `agency_inspector` — cross-department quality gate |
 | `agency_kit/mission.py` | `run_mission()` — control loop + direction check |
-| `agency_kit/models.py` | `ELITE` / `STANDARD` via `AK_ELITE_MODEL` / `AK_STANDARD_MODEL` |
+| `agency_kit/models.py` | `ELITE` / `STANDARD` / `JURISDICTION` — env-configurable model + jurisdiction |
+| `agency_kit/departments.py` | `DEPT_NAMES`, `VALID_DEPTS`, `dept_list_text()` — single source of truth for 9 depts |
 | `agency_kit/web.py` | `web_tools()` — search backend, selected by `AK_SEARCH` |
 | `agency_cli/cli.py` | `agency init / run / check / missions / resume / sync / batch / tui / export` entry point |
 | `agents/commander-agency.md` | Commander operating doctrine (prose) |
 | `agents/router-agency.md` | Router doctrine + JSON output format |
 | `agents/inspector-agency.md` | Inspector 3-check doctrine |
+| `agents/_shared-agency.md` | Cross-department shared doctrine (grade table, 9-dept roster, operating principles) |
+| `agents/_shared-<dept>.md` | Per-department shared doctrine × 9 (mission, scope, frameworks, sourcing rules) |
+| `agents/_shared-eu.md` | EU jurisdiction context (GDPR, NIS2, AI Act, DORA, CSRD post-Omnibus I) |
+| `agents/_shared-us.md` | US jurisdiction context (NIST CSF, SOC2, state privacy, SEC, FTC, FLSA) |
+| `agents/_shared-fr.md` | FR jurisdiction context (RGPD+CNIL, ANSSI, Code du travail, CCP, Sapin II) |
 | `.agency/memory/constitution.md` | 10 articles — immutable rules for every command |
 | `docs/ARCHITECTURE.md` | Routing table, pipeline diagram, design decisions |
 
@@ -33,9 +39,11 @@ pytest tests/ -v          # offline (SDK stubbed in conftest.py)
 ## Environment variables
 
 ```bash
-AK_ELITE_MODEL=gpt-5.5         # meta-commander, inspector
-AK_STANDARD_MODEL=gpt-5.4-mini # routing agent
+AK_ELITE_MODEL=gpt-4o          # meta-commander, inspector, dept commanders (default: gpt-4o)
+AK_STANDARD_MODEL=gpt-4o-mini  # routing agent (default: gpt-4o-mini)
 AK_SEARCH=ddg                  # search backend: ddg | tavily | gemini | openai (auto-detect when unset)
+AK_JURISDICTION=eu             # jurisdiction context injected into ops/tech/comms/people/data: eu | us | fr
+AK_HTTP_TIMEOUT=90             # HTTP timeout in seconds (default: 90; set 0 to disable)
 OPENAI_API_KEY=...
 # Each installed kit also reads its own vars: PK_ELITE_MODEL, MK_ELITE_MODEL, etc.
 ```

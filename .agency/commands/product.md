@@ -13,6 +13,7 @@ sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and any
    upstream `dept_outputs` already present (carry forward, do not reset).
+   Also read `agents/_shared-product.md` for this department's shared operating doctrine.
 
 2. **Guard**: if `product` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If product-kit is not installed, record the gap

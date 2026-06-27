@@ -14,6 +14,7 @@ ethics, Art. IV sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and all
    upstream `dept_outputs` (especially `dept_outputs.product` if present — marketing
    builds on product's truth, it does not re-derive the product strategy).
+   Also read `agents/_shared-marketing.md` for this department's shared operating doctrine.
 
 2. **Guard**: if `marketing` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If marketing-kit is not installed, record the gap

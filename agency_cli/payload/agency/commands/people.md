@@ -14,6 +14,10 @@ ethics, Art. IV sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and all
    upstream `dept_outputs` (product and tech outputs if present — people org design
    follows the product and tech architecture decisions, not the reverse).
+   Also read `agents/_shared-people.md` for this department's shared operating doctrine.
+   If `AK_JURISDICTION` is set (eu/us/fr), read `agents/_shared-{AK_JURISDICTION}.md`
+   for the applicable employment law context (EU Directives/pay transparency for EU;
+   NLRA/FLSA/EEOC for US; Code du travail/CSE for FR) and pass it as context in step 3.
 
 2. **Guard**: if `people` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If people-kit is not installed, record the gap

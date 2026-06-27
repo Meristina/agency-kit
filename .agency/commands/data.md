@@ -14,6 +14,10 @@ sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and all
    upstream `dept_outputs` (product spec if present — data engineering builds on what
    the product requires, tech architecture if present).
+   Also read `agents/_shared-data.md` for this department's shared operating doctrine.
+   If `AK_JURISDICTION` is set (eu/us/fr), read `agents/_shared-{AK_JURISDICTION}.md`
+   for the applicable privacy-engineering and data-residency constraints (GDPR/CCPA/RGPD)
+   and pass it as context in step 3.
 
 2. **Guard**: if `data` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If data-kit is not installed, record the gap

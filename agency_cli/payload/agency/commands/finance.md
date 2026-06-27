@@ -14,6 +14,7 @@ sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and all
    upstream `dept_outputs` (product, marketing, and solve outputs if present — finance
    evaluates the upstream strategy financially, it does not re-derive it).
+   Also read `agents/_shared-finance.md` for this department's shared operating doctrine.
 
 2. **Guard**: if `finance` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If finance-kit is not installed, record the gap

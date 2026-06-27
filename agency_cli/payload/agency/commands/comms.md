@@ -14,6 +14,9 @@ ethics, Art. IV sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and all
    upstream `dept_outputs` (product, marketing, finance outputs if present — comms builds
    on the strategy and narrative already established, does not re-derive them).
+   Also read `agents/_shared-comms.md` for this department's shared operating doctrine.
+   If `AK_JURISDICTION` is set (eu/us/fr), read `agents/_shared-{AK_JURISDICTION}.md`
+   and pass it as regulatory/legal context when delegating in step 3.
 
 2. **Guard**: if `comms` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If comms-kit is not installed, record the gap

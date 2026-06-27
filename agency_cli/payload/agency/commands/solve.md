@@ -15,6 +15,7 @@ sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
    upstream `dept_outputs` (`dept_outputs.product` and `dept_outputs.marketing` if
    present — solve applies decision intelligence to the combined picture, not to the
    raw brief alone once upstream departments have run).
+   Also read `agents/_shared-solve.md` for this department's shared operating doctrine.
 
 2. **Guard**: if `solve` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If solve-kit is not installed, record the gap

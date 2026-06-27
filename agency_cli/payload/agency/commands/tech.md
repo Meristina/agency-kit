@@ -14,6 +14,10 @@ ethics, Art. IV sovereignty, Art. VI routing, Art. VII pipeline, Art. X scope).
 1. **Read in**: `$MISSION/dossier.md` — goal, context, framing assumptions, and all
    upstream `dept_outputs` (product spec if present — tech architecture serves the
    product requirements, not the other way around).
+   Also read `agents/_shared-tech.md` for this department's shared operating doctrine.
+   If `AK_JURISDICTION` is set (eu/us/fr), read `agents/_shared-{AK_JURISDICTION}.md`
+   for the applicable security/data-residency requirements (NIS2/GDPR/AI Act for EU;
+   NIST CSF/SOC2/SEC cyber for US; ANSSI/SecNumCloud for FR) and pass it as context in step 3.
 
 2. **Guard**: if `tech` is not in the dossier's `route`, do not proceed — note the
    misroute in the dossier and stop. If tech-kit is not installed, record the gap
