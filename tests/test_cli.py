@@ -244,13 +244,13 @@ def test_cmd_run_parallel_flag(monkeypatch, tmp_path):
 
     calls = {}
 
-    def _fake_run(goal, project_root, steer, parallel):
+    def _fake_run(goal, project_root, steer, parallel, engine="api"):
         calls["parallel"] = parallel
         calls["goal"] = goal
         return tmp_path / "001-result"
 
     monkeypatch.setattr("agency_cli.runner_bridge.run", _fake_run)
-    rc = _cmd_run(Namespace(goal="test parallel goal", path=str(tmp_path), steer=False, parallel=True))
+    rc = _cmd_run(Namespace(goal="test parallel goal", path=str(tmp_path), steer=False, parallel=True, engine="api"))
     assert rc == 0
     assert calls.get("parallel") is True, "--parallel flag not forwarded to runner_bridge.run"
 

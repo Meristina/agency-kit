@@ -52,6 +52,7 @@ def _cmd_run(args) -> int:
         out = runner_bridge.run(
             args.goal, project_root=args.path, steer=args.steer,
             parallel=getattr(args, "parallel", False),
+            engine=getattr(args, "engine", "api"),
         )
     except ModuleNotFoundError as e:
         print(f"error: {e}. `agency run` needs the engine SDK: pip install openai-agents",
@@ -181,6 +182,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="run routed departments concurrently where possible (experimental)")
     pr.add_argument("--dry-run", dest="dry_run", action="store_true",
                     help="classify goal with keyword heuristic and show planned route — no API call")
+    pr.add_argument("--engine", default="api",
+                    choices=["api", "claude-code", "codex"],
+                    help="backend engine: api (default, needs openai-agents) | claude-code | codex")
     pr.set_defaults(func=_cmd_run)
 
     pm = sub.add_parser("missions", help="list saved missions from ~/.agency/missions/")

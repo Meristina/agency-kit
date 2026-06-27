@@ -65,12 +65,22 @@ def serialize_dossier(dossier: dict, project_root) -> Path:
     return out
 
 
-def run(goal: str, project_root: str = ".", steer: bool = False, parallel: bool = False) -> Path:
-    """Headless run: drive the engine, then serialize. Needs openai-agents + a configured provider.
+def run(goal: str, project_root: str = ".", steer: bool = False, parallel: bool = False,
+        engine: str = "api") -> Path:
+    """Headless run: drive the engine, then serialize.
 
-    parallel=True runs routed departments concurrently where possible (ThreadPoolExecutor).
-    steer=True opens the interactive Direction Check gate before execution.
+    engine="api"         — default; needs openai-agents + a configured API provider.
+    engine="claude-code" — calls `claude -p "..."` via subprocess; no API key required.
+    engine="codex"       — calls `codex --quiet "..."` via subprocess; no API key required.
+
+    parallel=True runs routed departments concurrently (api engine only).
+    steer=True opens the interactive Direction Check gate (api engine only).
     """
+    if engine != "api":
+        from .engines.cli_engine import run_mission_cli
+        dossier = run_mission_cli(goal, engine=engine)
+        return serialize_dossier(dossier, Path(project_root))
+
     from agency_kit.mission import auto_proceed, console_direction_check
     dc_fn = console_direction_check if steer else auto_proceed
     if parallel:

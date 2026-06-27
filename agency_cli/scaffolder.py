@@ -60,8 +60,11 @@ def init(target: str, agent: str = "claude") -> dict:
     target.mkdir(parents=True, exist_ok=True)
 
     # 1) the .agency/ payload (the command pack) — plans/ is internal dev work, not user content
-    shutil.copytree(src["agency"], target / ".agency", dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("plans"))
+    agency_src = Path(src["agency"]).resolve()
+    agency_dst = (target / ".agency").resolve()
+    if agency_src != agency_dst:
+        shutil.copytree(agency_src, agency_dst, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("plans"))
 
     # 2) memory/constitution.md
     constitution = target / ".agency" / "memory" / "constitution.md"
