@@ -1,6 +1,6 @@
 # Agency-Kit — Roadmap 360 B2B / B2G / B2C
 
-## Kits existants (4/9)
+## Kits câblés dans agency-kit (9/9)
 
 | # | Kit | Question métier | Statut |
 |---|---|---|---|
@@ -8,8 +8,13 @@
 | 2 | **marketing-kit** | Comment vendre & construire la marque ? | ✅ Done — 31 soldats |
 | 3 | **solve-kit** | Comment résoudre un problème ? | ✅ Done — 25 soldats |
 | 4 | **finance-kit** | Viable ? Comment signer et piloter le revenu ? | ✅ Done — 45 soldats |
+| 5 | **comms-kit** | Comment communiquer et protéger la réputation ? | ⚙️ Wired — armée interne à compléter |
+| 6 | **data-kit** | Comment collecter, structurer, analyser et valoriser les données ? | ⚙️ Wired — armée interne à compléter |
+| 7 | **ops-kit** | Comment optimiser les opérations, les achats et la conformité ? | ⚙️ Wired — armée interne à compléter |
+| 8 | **people-kit** | Qui recruter, comment organiser, comment faire grandir ? | ⚙️ Wired — armée interne à compléter |
+| 9 | **tech-kit** | Comment construire, faire tourner et sécuriser ? | ⚙️ Wired — armée interne à compléter |
 
-## Kits à construire (5/9)
+## Armées internes à compléter (5/9)
 
 | # | Kit | Question métier | Officers | Soldats est. | Priorité |
 |---|---|---|---|---|---|

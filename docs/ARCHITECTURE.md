@@ -133,7 +133,6 @@ own inspector handles that).
 
 | Command | Description |
 |---|---|
-| `/agency.goal` | End-to-end goal execution — audit → fix-list → execute → verify (loop until done) |
 | `/agency.mission` | Full cross-department mission with Direction Check |
 | `/agency.frame` | Frame a goal before running: clarify constraints, audience, context |
 | `/agency.inspect` | Inspect a deliverable: 3-check cross-department audit |
