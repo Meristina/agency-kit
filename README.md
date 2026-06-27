@@ -128,6 +128,8 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 | `AK_ELITE_MODEL` | `gpt-4o` | Model for the meta-commander and inspector |
 | `AK_STANDARD_MODEL` | `gpt-4o-mini` | Model for the routing agent |
 | `AK_SEARCH` | auto | Search backend (`ddg` / `tavily` / `gemini` / `openai`). When unset, auto-detects from keys present: `TAVILY_API_KEY` → tavily; `GEMINI_API_KEY` → gemini; `OPENAI_BASE_URL` set → ddg; otherwise OpenAI hosted WebSearchTool. |
+| `AK_JURISDICTION` | *(unset)* | Jurisdiction context injected into ops / tech / comms / data / people agents: `eu` (GDPR + NIS2 + AI Act + DORA + CSRD) · `us` (NIST CSF + SOC2 + state privacy + SEC) · `fr` (RGPD + ANSSI + Code du travail + CCP). When unset, agents infer from the goal. |
+| `AK_HTTP_TIMEOUT` | `90` | HTTP timeout in seconds for the OpenAI client. Set to `0` to disable. |
 | `OPENAI_API_KEY` | required | OpenAI key (or point at any OpenAI-compatible endpoint via `OPENAI_BASE_URL`) |
 
 Secrets and overrides are also read from a local, gitignored `.env` (loaded before any model or key is resolved).

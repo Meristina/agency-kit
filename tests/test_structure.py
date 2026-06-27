@@ -161,10 +161,25 @@ def test_router_uses_shared_valid_depts():
 # to agents/ without running `agency sync` ships divergent doctrine.
 
 _SYNCED_AGENTS = [
+    # agency-level doctrine
     "router-agency.md",
     "commander-agency.md",
     "inspector-agency.md",
     "_shared-agency.md",
+    # per-department shared doctrine (item 8)
+    "_shared-product.md",
+    "_shared-marketing.md",
+    "_shared-solve.md",
+    "_shared-finance.md",
+    "_shared-comms.md",
+    "_shared-data.md",
+    "_shared-ops.md",
+    "_shared-people.md",
+    "_shared-tech.md",
+    # jurisdiction context files (item 9)
+    "_shared-eu.md",
+    "_shared-us.md",
+    "_shared-fr.md",
 ]
 
 

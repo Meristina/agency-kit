@@ -70,15 +70,19 @@ Analyse multi-agents : 9 agents, 299 913 tokens, 396s — 2026-06-27.
 **Comment adapter :** `store.list_missions()` retourne déjà tout. Écran 1 : table missions (ID, GOAL, ROUTE, ITER, VERDICT). Écran 2 : viewer `deliverable.md`. Écran 3 : analytics (taux VETO par dept, itérations moyennes). Source : `dossier.json` — plus simple à parser que la markdown table career-ops.
 **Effort estimé :** ~3-5 jours.
 
-### 8. `_shared.md` par famille de département
+### ✓ 8. `_shared.md` par famille de département
 **Emprunté :** pattern `modes/_shared.md` de career-ops.
-**Comment adapter :** `_shared-finance.md`, `_shared-product.md`, etc. factorisant le contexte répété dans les 100+ fichiers officer/soldier.
-**Effort estimé :** ~2-3 jours (audit + refactoring).
+**Implémentation :** 9 fichiers `agents/_shared-<dept>.md` (product, marketing, solve, finance, comms, data, ops, people, tech) — chacun contient : mission du département, scope in/out, frameworks clés, règles de sourcing domain-specific, articles Constitution les plus pertinents, grade, liste "never". Miroirs créés dans `agency_cli/payload/agents/`. Test drift guard étendu à tous les fichiers (de 4 à 16 entrées dans `_SYNCED_AGENTS`).
+**Effort réel :** ~1h.
 
-### 9. Variants juridictionnels (pattern locale career-ops)
+### ✓ 9. Variants juridictionnels (pattern locale career-ops)
 **Emprunté :** `modes/de/`, `modes/fr/` de career-ops — mais pour compliance, pas langue.
-**Comment adapter :** `modes/eu/` (GDPR, NIS2, AI Act), `modes/us/` (SOC2, CCPA), `modes/fr/` (RGPD + droit du travail FR) pour les départements ops, tech, comms.
-**Effort estimé :** ~3-5 jours par département.
+**Implémentation :** 3 fichiers de contexte juridictionnel dans `agents/` + `payload/agents/` :
+- `_shared-eu.md` — GDPR, NIS2 (Directive 2022/2555), AI Act (Règlement 2024/1689), DORA ICT (Règlement 2022/2554), CSRD, marchés publics EU, directives emploi EU.
+- `_shared-us.md` — NIST CSF 2.0, SOC2 (AICPA), state privacy laws (CCPA/CPRA, VCDPA, CPA), SEC cyber disclosure 2023, FTC, droit fédéral emploi (Title VII/ADA/FLSA), FAR/DFARS/CMMC.
+- `_shared-fr.md` — RGPD + LIL transposition, CNIL, HDS, NIS2 FR + ANSSI/SecNumCloud, AI Act FR, Code du travail (CSE, BDESE, 35h, rupture conventionnelle), CIR/JEI, Loi Sapin II, HATVP, CCP (marchés publics FR), presse FR.
+Chaque fichier `_shared-<dept>.md` concerné (ops, tech, comms, people, data) contient une section "Jurisdiction Flags" qui indique explicitement quel fichier charger selon `AK_JURISDICTION`. Variable `JURISDICTION = os.getenv("AK_JURISDICTION", "")` ajoutée à `models.py`.
+**Effort réel :** ~2h.
 
 ---
 
@@ -103,5 +107,6 @@ Semaine 2  ✓ atomic mission lock + agency batch add/run/status/clear
 Semaine 3  ✓ agency export (WeasyPrint PDF)
 Mois 2     ✓ Python Textual TUI (3 onglets : Pipeline / Viewer / Analytics)
 Mois 3     ✓ _shared-agency.md + departments.py (source unique — 9 depts)
-             → suivant : variants juridictionnels EU/US/FR (ops/tech/comms)
+           ✓ _shared-<dept>.md × 9 (doctrine partagée par famille de département)
+           ✓ variants juridictionnels EU/US/FR (_shared-eu/us/fr.md + AK_JURISDICTION)
 ```

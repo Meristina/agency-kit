@@ -54,6 +54,10 @@ _load_dotenv()
 ELITE = os.getenv("AK_ELITE_MODEL", "gpt-4o")
 STANDARD = os.getenv("AK_STANDARD_MODEL", "gpt-4o-mini")
 
+# Jurisdiction context injected into ops / tech / comms / data / people agents.
+# Values: "eu" | "us" | "fr"  (or unset — agents infer from goal)
+JURISDICTION = os.getenv("AK_JURISDICTION", "")
+
 # Apply a hard HTTP timeout so Runner.run_sync never hangs indefinitely.
 # The agents SDK accepts a custom AsyncOpenAI client via set_default_openai_client().
 # AK_HTTP_TIMEOUT controls the limit (default 90 s); set to 0 to disable.
