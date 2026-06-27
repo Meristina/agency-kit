@@ -5,6 +5,7 @@ the `agents` SDK stub and all nine department-kit stubs), and that the commander
 and the inspector and guards its optional department imports.
 """
 
+import pytest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -155,14 +156,32 @@ def test_router_uses_shared_valid_depts():
 
 
 # ---- payload sync drift guard -----------------------------------------------
-# Bug surface: agents/router-agency.md is the single source of truth for routing
-# doctrine, but agency_cli/payload/agents/router-agency.md is a committed mirror.
-# A direct edit to agents/ without running `agency sync` ships divergent doctrine.
+# Bug surface: all four source agent files are the single source of truth for their
+# doctrine, but agency_cli/payload/agents/ holds committed mirrors. A direct edit
+# to agents/ without running `agency sync` ships divergent doctrine.
+
+_SYNCED_AGENTS = [
+    "router-agency.md",
+    "commander-agency.md",
+    "inspector-agency.md",
+    "_shared-agency.md",
+]
+
 
 def test_payload_router_matches_source():
     source = ROOT / "agents" / "router-agency.md"
     mirror = ROOT / "agency_cli" / "payload" / "agents" / "router-agency.md"
     assert source.read_text(encoding="utf-8") == mirror.read_text(encoding="utf-8"), (
         "agency_cli/payload/agents/router-agency.md has drifted from agents/router-agency.md — "
+        "run `agency sync` to regenerate the payload."
+    )
+
+
+@pytest.mark.parametrize("fname", _SYNCED_AGENTS)
+def test_payload_agent_matches_source(fname):
+    source = ROOT / "agents" / fname
+    mirror = ROOT / "agency_cli" / "payload" / "agents" / fname
+    assert source.read_text(encoding="utf-8") == mirror.read_text(encoding="utf-8"), (
+        f"agency_cli/payload/agents/{fname} has drifted from agents/{fname} — "
         "run `agency sync` to regenerate the payload."
     )

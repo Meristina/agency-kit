@@ -1,8 +1,8 @@
 """agency-kit — grade → model mapping (provider-agnostic, env-configurable).
 
 Defaults keep OpenAI (non-breaking):
-  AK_ELITE_MODEL     elite tier  (🎖️)  default: "gpt-5.5"
-  AK_STANDARD_MODEL  standard    (🔵)  default: "gpt-5.4-mini"
+  AK_ELITE_MODEL     elite tier  (🎖️)  default: "gpt-4o"
+  AK_STANDARD_MODEL  standard    (🔵)  default: "gpt-4o-mini"
 
 Anthropic (direct — no extra dependency, same pattern as Gemini):
   export OPENAI_BASE_URL="https://api.anthropic.com/v1/"
@@ -13,8 +13,8 @@ Anthropic (direct — no extra dependency, same pattern as Gemini):
 Gemini (direct):
   export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
   export OPENAI_API_KEY="<google-ai-studio-key>"
-  export AK_ELITE_MODEL="gemini-3.5-flash"
-  export AK_STANDARD_MODEL="gemini-3.1-flash-lite"
+  export AK_ELITE_MODEL="gemini-2.5-pro"
+  export AK_STANDARD_MODEL="gemini-2.5-flash"
 
 LiteLLM (only needed for dynamic multi-provider routing within one run):
   export AK_ELITE_MODEL="litellm/anthropic/claude-opus-4-8"
@@ -51,8 +51,8 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-ELITE = os.getenv("AK_ELITE_MODEL", "gpt-5.5")
-STANDARD = os.getenv("AK_STANDARD_MODEL", "gpt-5.4-mini")
+ELITE = os.getenv("AK_ELITE_MODEL", "gpt-4o")
+STANDARD = os.getenv("AK_STANDARD_MODEL", "gpt-4o-mini")
 
 # Apply a hard HTTP timeout so Runner.run_sync never hangs indefinitely.
 # The agents SDK accepts a custom AsyncOpenAI client via set_default_openai_client().

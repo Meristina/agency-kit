@@ -57,7 +57,7 @@ def gemini_web_search(query: str) -> str:
     key = _gemini_key()
     if not key:
         return "web_search unavailable: set GEMINI_API_KEY (Google AI Studio) or AK_WEBSEARCH=0."
-    model = os.getenv("AK_SEARCH_MODEL", "gemini-3.5-flash")
+    model = os.getenv("AK_SEARCH_MODEL", "gemini-2.5-flash")
     try:
         client = genai.Client(api_key=key)
         resp = client.models.generate_content(

@@ -47,14 +47,20 @@ except ImportError:
     _HAS_PRODUCT = False
 
 try:
-    from marketing_kit.commander import commander_marketing
+    try:
+        from marketing_kit.commander import commander_marketing
+    except ImportError:
+        from marketing_kit.commander import commander as commander_marketing
     _HAS_MARKETING = True
 except ImportError:
     commander_marketing = None
     _HAS_MARKETING = False
 
 try:
-    from solve_kit.commander import commander_solve
+    try:
+        from solve_kit.commander import commander_solve
+    except ImportError:
+        from solve_kit.commander import commander as commander_solve
     _HAS_SOLVE = True
 except ImportError:
     commander_solve = None

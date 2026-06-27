@@ -60,12 +60,12 @@ Analyse multi-agents : 9 agents, 299 913 tokens, 396s — 2026-06-27.
 
 ## MOYENNE priorité
 
-### 6. Export PDF via WeasyPrint
+### ✓ 6. Export PDF via WeasyPrint
 **Emprunté :** pipeline `generate-pdf.mjs` mais stack Python pure.
 **Comment adapter :** `deliverable.md` → `markdown` lib → HTML → `weasyprint` → PDF. Template HTML dans `templates/deliverable-template.html`. Nouvelle sous-commande `agency export <mission_id>`. Pas de contrainte ATS = WeasyPrint suffit.
 **Effort estimé :** ~1 jour.
 
-### 7. Python Textual TUI
+### ✓ 7. Python Textual TUI
 **Emprunté :** architecture 3 écrans du dashboard Go (pipeline table / viewer / analytics).
 **Comment adapter :** `store.list_missions()` retourne déjà tout. Écran 1 : table missions (ID, GOAL, ROUTE, ITER, VERDICT). Écran 2 : viewer `deliverable.md`. Écran 3 : analytics (taux VETO par dept, itérations moyennes). Source : `dossier.json` — plus simple à parser que la markdown table career-ops.
 **Effort estimé :** ~3-5 jours.

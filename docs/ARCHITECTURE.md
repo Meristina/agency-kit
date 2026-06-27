@@ -112,9 +112,45 @@ own inspector handles that).
    - Product spec ↔ Solve deliverables (builds what was designed)
    - No orphaned handoffs (discover → position → deliver, no gaps)
 
+## CLI subcommands
+
+| Command | Description |
+|---|---|
+| `agency init [path] [--agent claude\|codex\|cursor\|copilot\|gemini\|opencode]` | Scaffold `.agency/` + harness slash commands |
+| `agency run "goal" [--steer] [--parallel] [--dry-run]` | Headless mission — routes, executes, inspects |
+| `agency missions` | List all saved missions from `~/.agency/missions/` |
+| `agency resume <mission_id>` | Resume a paused/VETO'd mission from its checkpoint |
+| `agency check [path]` | Health check — constitution, SDK, at least one kit |
+| `agency sync [--allow-missing]` | Regenerate bundled payload from all repo sources |
+| `agency batch add "goal"` | Add a goal to the sequential batch queue |
+| `agency batch run [--resume-paused] [--retry-failed] [--limit N]` | Execute pending queue goals |
+| `agency batch status` | Show queue + run state |
+| `agency batch clear [--status done]` | Remove entries from the queue by status |
+| `agency export <mission_id>` | Export deliverable to PDF (optional: `pip install -e ".[pdf]"`) |
+| `agency tui` | Terminal UI — Pipeline / Viewer / Analytics (optional: `pip install -e ".[tui]"`) |
+
+## Slash commands (installed by `agency init`)
+
+| Command | Description |
+|---|---|
+| `/agency.goal` | End-to-end goal execution — audit → fix-list → execute → verify (loop until done) |
+| `/agency.mission` | Full cross-department mission with Direction Check |
+| `/agency.frame` | Frame a goal before running: clarify constraints, audience, context |
+| `/agency.inspect` | Inspect a deliverable: 3-check cross-department audit |
+| `/agency.product` | Deploy the product department directly |
+| `/agency.marketing` | Deploy the marketing department directly |
+| `/agency.solve` | Deploy the solve department directly |
+| `/agency.finance` | Deploy the finance department directly |
+| `/agency.comms` | Deploy the comms department directly |
+| `/agency.data` | Deploy the data department directly |
+| `/agency.ops` | Deploy the ops department directly |
+| `/agency.people` | Deploy the people department directly |
+| `/agency.tech` | Deploy the tech department directly |
+
 ## Optional department wiring
 
-`commander.py` uses try/except ImportError for each department kit:
+`commander.py` uses try/except ImportError for each department kit. Kits that export
+`commander` (not `commander_<dept>`) are handled with an import alias:
 
 ```python
 try:
@@ -123,6 +159,17 @@ try:
 except ImportError:
     commander_product = None
     _HAS_PRODUCT = False
+
+# Kits that export `commander` get an alias (e.g. solve-kit, marketing-kit)
+try:
+    try:
+        from solve_kit.commander import commander_solve
+    except ImportError:
+        from solve_kit.commander import commander as commander_solve
+    _HAS_SOLVE = True
+except ImportError:
+    commander_solve = None
+    _HAS_SOLVE = False
 ```
 
 The commander tool list is built conditionally — missing kits are silently absent.

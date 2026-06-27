@@ -36,7 +36,7 @@ You command nine optional departments and one cross-department auditor:
 | `commander_finance` | Viability, pricing, pipeline, commercial closing, reporting | 🎖️ elite | finance-kit (if installed) |
 | `commander_comms` | Corporate comms, PR/media, crisis, public affairs, ESG, events | 🎖️ elite | comms-kit (if installed) |
 | `commander_data` | Data strategy, engineering, analytics/BI, ML/LLMOps, data products | 🎖️ elite | data-kit (if installed) |
-| `commander_ops` | Process optimisation, PMO, procurement B2G, EU compliance, risk | 🎖️ elite | ops-kit (if installed) |
+| `commander_ops` | Process optimisation, PMO, EU compliance (NIS2, AI Act), risk | 🎖️ elite | ops-kit (if installed) |
 | `commander_people` | Org design, talent, L&D, performance, culture, people analytics | 🎖️ elite | people-kit (if installed) |
 | `commander_tech` | Architecture, DevOps, security, engineering excellence, build-vs-buy | 🎖️ elite | tech-kit (if installed) |
 | `inspector_agency` | Cross-department quality gate (mandatory, veto) | 🎖️ elite | agency-kit |
@@ -120,21 +120,21 @@ Default execution order when multiple departments are routed:
 4. **`finance`** (if routed) — evaluates economic viability, pricing, and
    commercial strategy. Takes product, marketing, and solve outputs as inputs;
    it does not re-derive upstream strategy — it evaluates it financially.
-5. **`comms`** (if routed) — corporate communications, PR/media, crisis, public
-   affairs B2G, ESG/CSRD, events. Runs after product/marketing when messaging
-   and narrative need external expression.
+5. **`comms`** (if routed) — corporate communications, PR/media relations,
+   crisis management, public affairs B2G, ESG/CSRD reporting, and events.
+   Runs after product/marketing when messaging and narrative are needed externally.
 6. **`data`** (if routed) — data strategy, engineering pipelines, analytics/BI,
-   ML/LLMOps, data quality, data products. Runs when the mission involves
+   ML/LLMOps, data quality, and data products. Runs when the mission involves
    building or scaling data infrastructure or intelligence.
-7. **`ops`** (if routed) — process optimisation, PMO, procurement B2G, EU
-   regulatory compliance (NIS2, AI Act, DORA ICT), risk mapping. Runs when the
-   mission involves operational delivery, regulatory fit, or scaling ops.
+7. **`ops`** (if routed) — process optimisation, PMO, procurement B2G,
+   EU regulatory compliance (NIS2, AI Act, DORA ICT), and risk mapping. Runs
+   when the mission involves operational delivery, regulatory fit, or scaling ops.
 8. **`people`** (if routed) — org design, talent acquisition, L&D, performance,
-   compensation, culture, people analytics. Runs when the mission involves
+   compensation, culture, and people analytics. Runs when the mission involves
    the organisation's human capital.
-9. **`tech`** (if routed) — software architecture, DevOps/IaC, security (OWASP,
-   SOC2, zero trust), engineering excellence, build-vs-buy, DORA metrics.
-   Runs when the mission involves technology decisions or delivery.
+9. **`tech`** (if routed) — software architecture, DevOps/IaC, security
+   (OWASP, SOC2, zero trust), engineering excellence, build-vs-buy, and DORA
+   metrics. Runs when the mission involves technology decisions or delivery.
 
 For each department call:
 - Pass the mission goal **plus the accumulated upstream `dept_outputs`** as

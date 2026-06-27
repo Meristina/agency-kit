@@ -119,11 +119,11 @@ def sync(allow_missing: bool = False) -> dict:
             "pass allow_missing=True (Python) or run `agency sync --allow-missing` (CLI)."
         )
 
-    # 1) .agency/ → payload/agency/
+    # 1) .agency/ → payload/agency/  (plans/ is internal dev work — excluded from the bundle)
     agency_dst = dest / "agency"
     if agency_dst.exists():
         shutil.rmtree(agency_dst)
-    shutil.copytree(agency_src, agency_dst)
+    shutil.copytree(agency_src, agency_dst, ignore=shutil.ignore_patterns("plans"))
     summary["agency"] = sum(1 for _ in agency_dst.rglob("*") if _.is_file())
 
     # 2) agents/ — agency-kit first, then all dept kits (with inspector renaming)

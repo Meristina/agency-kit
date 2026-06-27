@@ -21,8 +21,8 @@ Agency Commander
  └─ inspector_agency     🎖️  cross-department consistency check (veto power)
 ```
 
-🎖️ **elite** — `AK_ELITE_MODEL` (default `gpt-5.5`) — meta-commander, inspector, and each department commander
-🔵 **standard** — `AK_STANDARD_MODEL` (default `gpt-5.4-mini`) — the routing agent
+🎖️ **elite** — `AK_ELITE_MODEL` (default `gpt-4o`) — meta-commander, inspector, and each department commander
+🔵 **standard** — `AK_STANDARD_MODEL` (default `gpt-4o-mini`) — the routing agent
 
 Departments are **optional extras**. If a department package is not installed, its commander is simply absent from the toolset — the agency commander routes around it and notes the gap, never fabricating its output.
 
@@ -106,8 +106,8 @@ For Gemini (direct):
 ```bash
 export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
 export OPENAI_API_KEY="<google-ai-studio-key>"
-export AK_ELITE_MODEL="gemini-3.5-flash"
-export AK_STANDARD_MODEL="gemini-3.1-flash-lite"
+export AK_ELITE_MODEL="gemini-2.5-pro"
+export AK_STANDARD_MODEL="gemini-2.5-flash"
 ```
 
 LiteLLM is only needed for dynamic multi-provider routing within a single run:
@@ -125,8 +125,8 @@ export ANTHROPIC_API_KEY="sk-ant-..."
 
 | Variable | Default | Description |
 |---|---|---|
-| `AK_ELITE_MODEL` | `gpt-5.5` | Model for the meta-commander and inspector |
-| `AK_STANDARD_MODEL` | `gpt-5.4-mini` | Model for the routing agent |
+| `AK_ELITE_MODEL` | `gpt-4o` | Model for the meta-commander and inspector |
+| `AK_STANDARD_MODEL` | `gpt-4o-mini` | Model for the routing agent |
 | `AK_SEARCH` | auto | Search backend (`ddg` / `tavily` / `gemini` / `openai`). When unset, auto-detects from keys present: `TAVILY_API_KEY` → tavily; `GEMINI_API_KEY` → gemini; `OPENAI_BASE_URL` set → ddg; otherwise OpenAI hosted WebSearchTool. |
 | `OPENAI_API_KEY` | required | OpenAI key (or point at any OpenAI-compatible endpoint via `OPENAI_BASE_URL`) |
 
@@ -155,7 +155,7 @@ Secrets and overrides are also read from a local, gitignored `.env` (loaded befo
 ```bash
 # Scaffold .agency/ + slash commands for your harness
 agency init
-# installs: /agency.mission  /agency.frame   /agency.inspect
+# installs: /agency.goal     /agency.mission /agency.frame   /agency.inspect
 #           /agency.product  /agency.marketing /agency.solve
 #           /agency.finance  /agency.comms   /agency.data
 #           /agency.ops      /agency.people  /agency.tech
@@ -165,6 +165,30 @@ agency run "Launch our new B2B analytics product"
 
 # Run with the interactive Direction Check (confirm or steer the route before execution)
 agency run --steer "Take this feature end-to-end"
+
+# Run departments concurrently where possible
+agency run --parallel "Full go-to-market plan"
+
+# Classify the goal and show the planned route — no API call
+agency run --dry-run "Pitch investors for Series A"
+
+# List saved missions
+agency missions
+
+# Resume a paused mission (e.g. after a rate-limit hit)
+agency resume 20260627-123000-launch-b2b-analytics
+
+# Add goals to the batch queue and run them sequentially
+agency batch add "Build a data strategy"
+agency batch run
+agency batch run --resume-paused    # after a quota pause
+agency batch status
+
+# Export a mission deliverable to PDF (needs pip install -e ".[pdf]")
+agency export 20260627-123000-launch-b2b-analytics
+
+# Launch the terminal UI — Pipeline / Viewer / Analytics (needs pip install -e ".[tui]")
+agency tui
 
 # Prerequisite / health check
 agency check
