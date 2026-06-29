@@ -29,17 +29,16 @@ SUPPORTED = ("claude", "codex", "cursor", "copilot", "gemini", "opencode")
 
 def _parse_command(path: Path):
     """Return (name, description, body) from a source command markdown file."""
+    from agency_kit.store import split_frontmatter
     text = path.read_text(encoding="utf-8")
     name = path.stem  # e.g. "mission"
-    description, body = "", text
-    if text.startswith("---"):
-        end = text.find("\n---", 3)
-        if end != -1:
-            fm, body = text[3:end], text[end + 4:].lstrip("\n")
-            for line in fm.splitlines():
-                if line.strip().startswith("description:"):
-                    description = line.split(":", 1)[1].strip().strip('"').strip("'")
-                    break
+    fm, body = split_frontmatter(text)
+    body = body.lstrip("\n") if fm else text
+    description = ""
+    for line in fm.splitlines():
+        if line.strip().startswith("description:"):
+            description = line.split(":", 1)[1].strip().strip('"').strip("'")
+            break
     description = description or f"Agency-Kit /{name}"
     return name, description, body
 

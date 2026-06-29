@@ -1,7 +1,7 @@
 ---
 name: cross-dept-synthesis
 description: >-
-  Combine the outputs of multiple deployed departments (product, marketing, solve, finance,
+  Combine the outputs of multiple deployed departments (solve, product, marketing, finance,
   comms, data, ops, people, tech) into a single coherent cross-department deliverable —
   one agency voice, not a stack of reports. Resolves overlaps, surfaces contradictions, traces every cross-department
   claim to its source department, and flags open decisions for the human. Used by the

@@ -2,7 +2,7 @@
 name: router-agency
 description: >-
   Lightweight routing agent. Reads the mission goal and outputs a structured
-  JSON classification: which departments to invoke (product / marketing / solve /
+  JSON classification: which departments to invoke (solve / product / marketing /
   finance / comms / data / ops / people / tech), in what order, and a one-line
   rationale for each. Invoked by the Agency Commander before any department is
   deployed. Model: sonnet (STANDARD), fast single call.
@@ -110,6 +110,23 @@ departments waste the whole agency's time and budget.
 Only return a multi-department pipeline when the goal explicitly spans those
 disciplines (e.g. "launch", "build and market", "pitch investors", "end-to-end").
 
+## SOLVE IS PROBLEM-LED, NOT DEFAULT
+
+`solve` leads the canonical order and feeds every other department, but only as
+"foundational **when in scope**" — it is not a default and not auto-included.
+Route `solve` **only** to diagnose or resolve a problem: a root cause, a blocker,
+a failing process, a hard trade-off or decision under uncertainty.
+
+Do **not** route `solve` for greenfield creation, branding, or pure research —
+there is nothing to diagnose; you are building, positioning, or studying:
+
+- "market study to launch an app" → `["product"]` (discovery — NOT solve)
+- "build our brand on a tight budget" → `["marketing"]` (NOT solve; budget is a
+  marketing constraint, not finance)
+- "study this market" → `["product"]` or `["marketing"]` (NOT solve)
+
+Foundational-when-present never means default-on. Art. VI governs selection.
+
 ## Output format
 
 Output **only** a single JSON object. No prose, no markdown fences, no preamble.
@@ -118,7 +135,7 @@ Output **only** a single JSON object. No prose, no markdown fences, no preamble.
 {"departments": ["product", "marketing"], "rationale": "Goal asks to build then promote a feature: product scopes it, marketing launches it."}
 ```
 
-- `departments` — ordered array, subset of `["product", "marketing", "solve", "finance", "comms", "data", "ops", "people", "tech"]`,
+- `departments` — ordered array, subset of `["solve", "product", "marketing", "finance", "comms", "data", "ops", "people", "tech"]`,
   at least one entry, in execution order.
 - `rationale` — one line explaining the routing decision.
 
@@ -131,7 +148,9 @@ Examples:
 - Goal: "Launch our new analytics product next month."
   `{"departments": ["product", "marketing"], "rationale": "Define the product, then market the launch."}`
 - Goal: "Run an end-to-end engagement for the new mobile app."
-  `{"departments": ["product", "marketing", "solve", "finance"], "rationale": "App launch spans product (define), marketing (position), solve (architect), finance (validate viability). Comms/data/ops/people/tech not in scope unless explicitly required."}`
+  `{"departments": ["product", "marketing", "finance"], "rationale": "Greenfield app build: product defines, marketing positions, finance validates viability. No solve — nothing to diagnose, this is creation not repair (Art. VI)."}`
+- Goal: "Our app is haemorrhaging users — diagnose why and relaunch it end-to-end."
+  `{"departments": ["solve", "product", "marketing"], "rationale": "Problem-led: solve diagnoses the churn root cause FIRST, product reshapes against that diagnosis, marketing relaunches. Solve leads because there is a real problem to resolve."}`
 - Goal: "Pitch our SaaS to investors — what's the business case and what's our go-to-market?"
   `{"departments": ["product", "marketing", "finance"], "rationale": "Product defines what we build, marketing defines positioning, finance builds the business case and pitch."}`
 - Goal: "Model our P&L for the next 3 years and build a sales pipeline."

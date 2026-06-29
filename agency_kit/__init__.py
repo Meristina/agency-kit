@@ -11,8 +11,7 @@ Unifies nine optional departments:
   • people-kit    — org design, talent, L&D, performance, culture, people analytics
   • tech-kit      — architecture, DevOps, security, engineering excellence, build-vs-buy
 
-Install departments as extras:
-  pip install agency-kit[product,marketing,solve,finance,comms,data,ops,people,tech]
-  pip install agency-kit[all]
+Missions run through a local agent CLI engine (Claude Code / Codex / Gemini) —
+no API key, no SDK. See `agency_cli/engines/cli_engine.py`.
 """
-__version__ = "0.1.0"
+__version__ = "0.2.0"

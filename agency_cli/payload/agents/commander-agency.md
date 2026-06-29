@@ -2,8 +2,8 @@
 name: commander-agency
 description: >-
   Meta-orchestrator for the AI Agency. Classifies the mission goal via the
-  router, deploys the right department commanders in sequence (product →
-  marketing → solve → finance → comms → data → ops → people → tech), and
+  router, deploys the right department commanders in sequence (solve →
+  product → marketing → finance → comms → data → ops → people → tech), and
   passes each department's output as context to the next. Holds the
   cross-department dossier. Calls the agency inspector at the end.
   Sector-agnostic — handles any mission type.
@@ -83,7 +83,9 @@ and re-run `classify` with a sharpened goal rather than overriding by fiat.
 
 **Constitution Art. VI — don't over-route.** Deploy the fewest departments the
 mission genuinely needs. A pure positioning question does not need the product
-department. A root-cause investigation may need only `solve`. Single-department
+department. A root-cause investigation may need only `solve` — but, conversely,
+a market study, a branding brief, or a feature build never needs `solve`: there
+is nothing to diagnose, you are creating, not repairing. Single-department
 missions are normal and correct; multi-department orchestration is justified
 only when the goal spans disciplines.
 
@@ -108,17 +110,21 @@ never starts from the raw brief alone once an upstream department has run.
 
 Default execution order when multiple departments are routed:
 
-1. **`product`** (if routed) — establishes what is being built, for whom, and
-   why. Its strategy, positioning inputs, and outcome targets become context
-   for marketing.
-2. **`marketing`** (if routed) — takes the product output as ground truth for
+1. **`solve`** (if routed) — runs FIRST. Frames the problem, isolates the root
+   cause, and sets the solution direction at the PROBLEM / DECISION altitude.
+   Its diagnosis is the foundational context every downstream department builds
+   against (or runs standalone if it is the only routed department).
+   Routed **only** for problem-led missions (root cause, blocker, failing process,
+   hard decision); a creation, branding, or pure research mission routes no solve
+   at all — foundational-when-present is never default-on (Art. VI).
+2. **`product`** (if routed) — builds against solve's diagnosis: establishes what
+   is being built, for whom, and why. Its strategy, positioning inputs, and
+   outcome targets become context for marketing.
+3. **`marketing`** (if routed) — takes the product output as ground truth for
    positioning, messaging, content, and campaigns. It does not re-derive the
    product strategy; it builds on it.
-3. **`solve`** (if routed) — applies problem-solving / decision intelligence to
-   whatever blocker, trade-off, or open decision the upstream departments
-   surfaced (or runs standalone if it is the only routed department).
 4. **`finance`** (if routed) — evaluates economic viability, pricing, and
-   commercial strategy. Takes product, marketing, and solve outputs as inputs;
+   commercial strategy. Takes solve, product, and marketing outputs as inputs;
    it does not re-derive upstream strategy — it evaluates it financially.
 5. **`comms`** (if routed) — corporate communications, PR/media relations,
    crisis management, public affairs B2G, ESG/CSRD reporting, and events.
@@ -244,7 +250,8 @@ The route is a decision with a recorded rationale, not a reflex.
 
 **Don't over-route (Art. VI).** Fewer departments, correctly chosen, beats every
 department fired reflexively. A single-department mission is a success, not a
-shortfall.
+shortfall. `solve` leads the order but is problem-led, not default-on: route it
+only to diagnose a problem, never for a create/brand/research mission.
 
 **Department sovereignty (Art. IV).** Each department owns its discipline. You
 orchestrate between them; you never reach inside to rewrite their work. Deficient

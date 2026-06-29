@@ -3,9 +3,9 @@
 Queue : ~/.agency/batch-queue.tsv  (id, goal, priority, status, notes)
 State : ~/.agency/batch-state.tsv  (id, status, started_at, finished_at, last_verdict, retries, mission_id)
 
-Design: sequential by default (parallel=1). State written per-job so
-`--resume-paused` restarts from the first non-done entry after a quota pause.
-Mirrors the career-ops batch-runner.sh pattern, adapted to Python + run_mission().
+Design: sequential. Each goal runs through the local agent CLI engine
+(`runner_bridge.run`); state is written per-job so `--retry-failed` can re-run
+goals that errored.
 """
 
 import csv
@@ -111,8 +111,8 @@ def status() -> int:
     return 0
 
 
-def run(resume_paused: bool = False, retry_failed: bool = False, limit: int = 0) -> int:
-    """Run pending goals sequentially, updating state after each."""
+def run(retry_failed: bool = False, limit: int = 0, engine: str = "claude-code") -> int:
+    """Run pending goals sequentially through the engine, updating state after each."""
     queue = _read_tsv(_queue_path())
     state = {r["id"]: r for r in _read_tsv(_state_path())}
 
@@ -122,26 +122,20 @@ def run(resume_paused: bool = False, retry_failed: bool = False, limit: int = 0)
         current = state.get(qid, {}).get("status") or q.get("status", "pending")
         if current == "pending":
             targets.append(q)
-        elif current == "paused_rate_limit" and resume_paused:
-            targets.append(q)
         elif current == "failed" and retry_failed:
             targets.append(q)
 
     if not targets:
-        print("[batch] Nothing to run. All goals are done, failed, or paused.")
+        print("[batch] Nothing to run. All goals are done or failed.")
         return 0
     if limit:
         targets = targets[:limit]
 
-    print(f"[batch] {len(targets)} goal(s) to process.")
+    print(f"[batch] {len(targets)} goal(s) to process via {engine}.")
 
-    try:
-        from agency_kit.mission import run_mission
-    except ModuleNotFoundError as e:
-        print(f"error: {e}. Install the SDK: pip install openai-agents", file=sys.stderr)
-        return 2
+    from . import runner_bridge
 
-    ok = fail = paused = 0
+    ok = fail = 0
     for q in targets:
         qid = str(q["id"])
         goal = q["goal"]
@@ -161,7 +155,7 @@ def run(resume_paused: bool = False, retry_failed: bool = False, limit: int = 0)
         _write_state(state)
 
         try:
-            dossier = run_mission(goal)
+            result = runner_bridge.run(goal, engine=engine)
         except Exception as exc:
             s["status"] = "failed"
             s["last_verdict"] = f"ERROR: {str(exc)[:80]}"
@@ -172,28 +166,18 @@ def run(resume_paused: bool = False, retry_failed: bool = False, limit: int = 0)
             fail += 1
             continue
 
-        s["mission_id"] = dossier.get("mission_id", "")
+        s["mission_id"] = result.path.name
         s["finished_at"] = datetime.now().isoformat(timespec="seconds")
-
-        if dossier.get("status") == "paused_rate_limit":
-            s["status"] = "paused_rate_limit"
-            s["last_verdict"] = "PAUSED"
-            paused += 1
-            state[qid] = s
-            _write_state(state)
-            print(f"  [batch] #{qid} paused (quota). Resume:  agency batch run --resume-paused")
-            break  # stop scheduling; quota exhausted for this session
-
-        verdicts = dossier.get("verdicts") or []
-        last_v = verdicts[-1].get("verdict", "—") if verdicts else "—"
         s["status"] = "done"
-        s["last_verdict"] = last_v
+        # Record the real Inspector verdict (PASS / PASS-WITH-FIXES / VETO), not a
+        # blanket 'DELIVERED' — a VETOed mission must not display as a clean success.
+        s["last_verdict"] = runner_bridge._last_verdict(result.dossier)
         ok += 1
         state[qid] = s
         _write_state(state)
-        print(f"  [batch] #{qid} done — {last_v}")
+        print(f"  [batch] #{qid} done — {result.path} [{s['last_verdict']}]")
 
-    print(f"\n[batch] {ok} done, {fail} failed, {paused} paused.")
+    print(f"\n[batch] {ok} done, {fail} failed.")
     return 0 if fail == 0 else 1
 
 

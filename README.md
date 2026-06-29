@@ -1,30 +1,32 @@
 # Agency-Kit
 
-The **meta-orchestrator** of the AI Agency. Agency-Kit sits one level above nine optional departments — `product-kit`, `marketing-kit`, `solve-kit`, `finance-kit`, `comms-kit`, `data-kit`, `ops-kit`, `people-kit`, and `tech-kit` — reads a mission goal, and routes it to the right department(s). It runs single-department missions as well as cross-department pipelines (e.g. *product → marketing → finance*) behind a single CLI and a single Python entry point, so you describe the outcome once and the agency figures out who does what, in what order.
+The **meta-orchestrator** of the AI Agency. Agency-Kit routes a mission goal across nine departments — **solve**, **product**, **marketing**, **finance**, **comms**, **data**, **ops**, **people**, and **tech** — and has a local agent CLI engine (Claude Code / Codex / Gemini) play each one in turn. It runs single-department missions as well as cross-department pipelines (e.g. *solve → product → marketing*) behind a single CLI, so you describe the outcome once and the agency figures out who does what, in what order. No API key, no SDK.
 
 ---
 
 ## Architecture
 
 ```
-Agency Commander
- ├─ router_agency        🔵  classifies the goal → ordered department list
- ├─ commander_product    🎖️  product-kit    (optional extra)
- ├─ commander_marketing  🎖️  marketing-kit  (optional extra)
- ├─ commander_solve      🎖️  solve-kit      (optional extra)
- ├─ commander_finance    🎖️  finance-kit    (optional extra)
- ├─ commander_comms      🎖️  comms-kit      (optional extra)
- ├─ commander_data       🎖️  data-kit       (optional extra)
- ├─ commander_ops        🎖️  ops-kit        (optional extra)
- ├─ commander_people     🎖️  people-kit     (optional extra)
- ├─ commander_tech       🎖️  tech-kit       (optional extra)
- └─ inspector_agency     🎖️  cross-department consistency check (veto power)
+Agency Commander  (one engine model plays every role, guided by agents/ doctrine)
+ ├─ router        🔵  classifies the goal → ordered department list
+ ├─ solve         🎖️  problem-solving · root-cause · architecture · decisions
+ ├─ product       🎖️  discovery · roadmap · JTBD · prioritisation · specs
+ ├─ marketing     🎖️  positioning · content · campaigns · launch · SEO
+ ├─ finance       🎖️  business case · pricing · P&L · commercial pipeline
+ ├─ comms         🎖️  PR/media · crisis · public affairs · ESG/CSRD · events
+ ├─ data          🎖️  data strategy · engineering · analytics/BI · ML/LLMOps
+ ├─ ops           🎖️  process · PMO · procurement B2G · EU compliance · risk
+ ├─ people        🎖️  org design · talent · L&D · performance · culture
+ ├─ tech          🎖️  architecture · DevOps · security · engineering excellence
+ └─ inspector     🎖️  cross-department consistency check (veto power)
 ```
 
-🎖️ **elite** — `AK_ELITE_MODEL` (default `gpt-4o`) — meta-commander, inspector, and each department commander
-🔵 **standard** — `AK_STANDARD_MODEL` (default `gpt-4o-mini`) — the routing agent
-
-Departments are **optional extras**. If a department package is not installed, its commander is simply absent from the toolset — the agency commander routes around it and notes the gap, never fabricating its output.
+There are no installable kits and no `commander_<dept>` symbols. Every role —
+router, each of the nine departments, and the inspector — is played by the single
+**engine model** you choose with `--engine` (Claude Code / Codex / Gemini), guided
+by the doctrine files in `agents/`. The router classifies the goal to the minimum
+ordered department set; the engine then plays only those departments, in order. The
+engine uses its own model selection and auth.
 
 ---
 
@@ -63,90 +65,43 @@ The router outputs a small JSON object (`{"departments": [...], "rationale": "..
 
 ## Installation
 
-```bash
-pip install openai-agents
-pip install -e .
-```
-
-Install the departments you need as extras:
+agency-kit has **no runtime dependencies and needs no API key**. Missions run
+through a local agent CLI engine via subprocess.
 
 ```bash
-pip install -e ".[all]"          # all nine department kits
-pip install -e ".[product]"      # product-kit only
-pip install -e ".[marketing]"    # marketing-kit only
-pip install -e ".[solve]"        # solve-kit only
-pip install -e ".[finance]"      # finance-kit only
-pip install -e ".[comms]"        # comms-kit only
-pip install -e ".[data]"         # data-kit only
-pip install -e ".[ops]"          # ops-kit only
-pip install -e ".[people]"       # people-kit only
-pip install -e ".[tech]"         # tech-kit only
-pip install -e ".[dev]"          # pytest (offline tests)
+pip install -e .                 # the agency CLI (pure stdlib)
+pip install -e ".[dev]"          # + pytest (offline tests)
+pip install -e ".[pdf]"          # + PDF export
+pip install -e ".[tui]"          # + terminal UI
 ```
 
-Optional search backends:
+Then install **at least one** agent CLI engine and authenticate it once:
 
-```bash
-pip install -e ".[ddg]"          # DuckDuckGo (free, no key)
-pip install -e ".[tavily]"       # Tavily
-pip install -e ".[gemini]"       # Gemini grounding
-```
+| Engine (`--engine`) | CLI | Web search |
+|---|---|---|
+| `claude-code` (default) | [Claude Code](https://code.claude.com) (`claude`) | ✅ `--allowedTools WebSearch` |
+| `codex` | [Codex CLI](https://developers.openai.com/codex/cli) (`codex`) | ✅ `--search` |
+| `gemini` | [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`gemini`) | ✅ built-in |
 
-For Anthropic (direct — no extra dependency):
-
-```bash
-export OPENAI_BASE_URL="https://api.anthropic.com/v1/"
-export OPENAI_API_KEY="sk-ant-..."
-export AK_ELITE_MODEL="claude-opus-4-8"
-export AK_STANDARD_MODEL="claude-sonnet-4-6"
-```
-
-For Gemini (direct):
-
-```bash
-export OPENAI_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/"
-export OPENAI_API_KEY="<google-ai-studio-key>"
-export AK_ELITE_MODEL="gemini-2.5-pro"
-export AK_STANDARD_MODEL="gemini-2.5-flash"
-```
-
-LiteLLM is only needed for dynamic multi-provider routing within a single run:
-
-```bash
-pip install -e ".[litellm]"
-export AK_ELITE_MODEL="litellm/anthropic/claude-opus-4-8"
-export AK_STANDARD_MODEL="litellm/anthropic/claude-sonnet-4-6"
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
+Each CLI uses its own authenticated session and its own live web search — agency-kit
+never sees a key. Live web search is required (Art. I: never invent data), which is
+why only web-search-capable CLIs are wired.
 
 ---
 
 ## Configuration
 
-| Variable | Default | Description |
-|---|---|---|
-| `AK_ELITE_MODEL` | `gpt-4o` | Model for the meta-commander and inspector |
-| `AK_STANDARD_MODEL` | `gpt-4o-mini` | Model for the routing agent |
-| `AK_SEARCH` | auto | Search backend (`ddg` / `tavily` / `gemini` / `openai`). When unset, auto-detects from keys present: `TAVILY_API_KEY` → tavily; `GEMINI_API_KEY` → gemini; `OPENAI_BASE_URL` set → ddg; otherwise OpenAI hosted WebSearchTool. |
-| `AK_JURISDICTION` | *(unset)* | Jurisdiction context injected into ops / tech / comms / data / people agents: `eu` (GDPR + NIS2 + AI Act + DORA + CSRD) · `us` (NIST CSF + SOC2 + state privacy + SEC) · `fr` (RGPD + ANSSI + Code du travail + CCP). When unset, agents infer from the goal. |
-| `AK_HTTP_TIMEOUT` | `90` | HTTP timeout in seconds for the OpenAI client. Set to `0` to disable. |
-| `OPENAI_API_KEY` | required | OpenAI key (or point at any OpenAI-compatible endpoint via `OPENAI_BASE_URL`) |
+agency-kit itself reads **no environment variables** for execution. Model choice and
+auth belong to the engine CLI you pick:
 
-Secrets and overrides are also read from a local, gitignored `.env` (loaded before any model or key is resolved).
+```bash
+claude          # authenticate Claude Code once (interactive)
+agency run "Launch our new B2B analytics product"            # uses claude-code
+agency run --engine gemini "Diagnose our churn and relaunch" # uses gemini
+```
 
-**Each kit keeps its own configuration.** When a department is deployed, *its* env vars still apply — agency-kit never overrides them:
-
-| Department | Elite model | Standard model | Search |
-|---|---|---|---|
-| product | `PK_ELITE_MODEL` | `PK_STANDARD_MODEL` | `PK_SEARCH` |
-| marketing | `MK_ELITE_MODEL` | `MK_STANDARD_MODEL` | `MK_SEARCH` |
-| solve | `SK_ELITE_MODEL` | `SK_STANDARD_MODEL` | `SK_SEARCH` |
-| finance | `FK_ELITE_MODEL` | `FK_STANDARD_MODEL` | `FK_SEARCH` |
-| comms | `CK_ELITE_MODEL` | `CK_STANDARD_MODEL` | `CK_SEARCH` |
-| data | `DK_ELITE_MODEL` | `DK_STANDARD_MODEL` | `DK_SEARCH` |
-| ops | `OK_ELITE_MODEL` | `OK_STANDARD_MODEL` | `OK_SEARCH` |
-| people | `PEK_ELITE_MODEL` | `PEK_STANDARD_MODEL` | `PEK_SEARCH` |
-| tech | `TK_ELITE_MODEL` | `TK_STANDARD_MODEL` | `TK_SEARCH` |
+`agency check` verifies the constitution is present and at least one engine CLI is on
+your `PATH`.
 
 ---
 
@@ -163,28 +118,26 @@ agency init
 #           /agency.ops      /agency.people  /agency.tech
 #           (12 commands total)
 
-# Run a headless mission (router decides the route, then auto-proceeds)
+# Run a headless mission (router decides the route, then runs each dept via the engine)
 agency run "Launch our new B2B analytics product"
 
-# Run with the interactive Direction Check (confirm or steer the route before execution)
-agency run --steer "Take this feature end-to-end"
+# Pick a different engine
+agency run --engine codex "Take this feature end-to-end"
+agency run --engine gemini "Full go-to-market plan"
 
-# Run departments concurrently where possible
-agency run --parallel "Full go-to-market plan"
-
-# Classify the goal and show the planned route — no API call
+# Classify the goal and show the planned route — no engine call
 agency run --dry-run "Pitch investors for Series A"
 
 # List saved missions
 agency missions
 
-# Resume a paused mission (e.g. after a rate-limit hit)
+# Re-run a saved mission's goal through the engine
 agency resume 20260627-123000-launch-b2b-analytics
 
 # Add goals to the batch queue and run them sequentially
 agency batch add "Build a data strategy"
 agency batch run
-agency batch run --resume-paused    # after a quota pause
+agency batch run --retry-failed     # also re-run goals that errored
 agency batch status
 
 # Export a mission deliverable to PDF (needs pip install -e ".[pdf]")
@@ -203,51 +156,54 @@ agency sync
 ### Python
 
 ```python
-from agency_kit.mission import run_mission
+from agency_cli.engines.cli_engine import run_mission_cli
 
-dossier = run_mission("Launch our new B2B analytics product")
+dossier = run_mission_cli("Launch our new B2B analytics product", engine="claude-code")
 print(dossier["route"])       # e.g. ["product", "marketing"]
 print(dossier["delivered"])   # the synthesised cross-department deliverable
+
+# Full headless path (saves to ~/.agency + writes missions/<id>/):
+from agency_cli import runner_bridge
+out = runner_bridge.run("Take this feature end-to-end", engine="gemini")
 ```
 
-With the optional, non-blocking Direction Check:
-
-```python
-from agency_kit.mission import run_mission, console_direction_check
-
-dossier = run_mission(
-    "Take this feature end-to-end",
-    dc_fn=console_direction_check,   # pause after CLASSIFY, before EXECUTE
-)
-```
-
-The mission loop is `CLASSIFY → (optional Direction Check) → EXECUTE → INSPECT`. The agency inspector gates delivery with veto power; a `VETO` or `PASS_WITH_FIXES` loops back with required fixes. Iterations are capped at `MAX_ITERS = 3`; if still failing, it delivers the best result with `residual_risk` stated.
+The mission loop is `ROUTE → EXECUTE (per dept) → SYNTHESIZE → INSPECT`, all run
+through the chosen engine CLI via subprocess. The inspector's output is stored in
+`verdicts` as a short token (`PASS` / `PASS-WITH-FIXES` / `VETO`) plus the full text.
+The engine is single-shot — no retry loop.
 
 ---
 
-## The nine kits
+## The nine departments
 
-| Department | Repo | Focus |
-|---|---|---|
-| Product | `product-kit` | Discovery · strategy · prioritisation · design · delivery · measurement |
-| Marketing | `marketing-kit` | Research · positioning · content · campaigns · analytics |
-| Solve | `solve-kit` | Problem-solving · root-cause · architecture · implementation |
-| Finance | `finance-kit` | Business case · pricing · P&L · commercial pipeline · closing · reporting |
-| Comms | `comms-kit` | Corporate comms · PR/media · crisis · public affairs · ESG/CSRD · events |
-| Data | `data-kit` | Data strategy · engineering · analytics/BI · ML/LLMOps · data products |
-| Ops | `ops-kit` | Process optimisation · PMO · EU compliance (NIS2, AI Act) · risk |
-| People | `people-kit` | Org design · talent · L&D · performance · culture · people analytics |
-| Tech | `tech-kit` | Architecture · DevOps · security · engineering excellence · build-vs-buy |
+Each department is a role the engine model plays, guided by its doctrine file in
+`agents/_shared-<dept>.md`. They are not installable packages.
 
-Each kit is a complete, standalone agent army (Commander → Officers → Soldiers → Inspector) with its own CLI and its own constitution.
+| Department | Focus |
+|---|---|
+| Solve | Problem-solving · root-cause · architecture · implementation |
+| Product | Discovery · strategy · prioritisation · design · delivery · measurement |
+| Marketing | Research · positioning · content · campaigns · analytics |
+| Finance | Business case · pricing · P&L · commercial pipeline · closing · reporting |
+| Comms | Corporate comms · PR/media · crisis · public affairs · ESG/CSRD · events |
+| Data | Data strategy · engineering · analytics/BI · ML/LLMOps · data products |
+| Ops | Process optimisation · PMO · EU compliance (NIS2, AI Act) · risk |
+| People | Org design · talent · L&D · performance · culture · people analytics |
+| Tech | Architecture · DevOps · security · engineering excellence · build-vs-buy |
 
 ---
 
-## Why nine kits + one orchestrator (not a monorepo)
+## Why nine departments + one orchestrator
 
-- **Each kit is standalone.** A client installs only the department(s) they need. `product-kit` runs perfectly well with no knowledge that agency-kit exists.
-- **Agency-kit adds cross-department routing without coupling the kits.** Departments are optional extras wired in conditionally; an absent kit disappears from the route rather than breaking the import.
-- **Department sovereignty (Art. IV).** The agency orchestrates *between* departments; it never reaches *inside* one to bypass that kit's own commander, inspector, or doctrine. Each department remains the sole authority over how its work is done.
+- **One source of truth per department.** Each department's behaviour lives in a single
+  doctrine file (`agents/_shared-<dept>.md`) the engine loads at runtime — no installable
+  package, no conditional import wiring, nothing to drift out of sync.
+- **The router deploys the minimum set (Art. VI).** A department that the goal does not
+  need is simply not routed, so it never runs and never appears in the deliverable — the
+  route, not an install state, decides who plays.
+- **Department sovereignty (Art. IV).** The agency orchestrates *between* departments; it
+  passes each department's full deliverable forward unchanged and never rewrites another
+  department's work. Each department remains the sole authority over how its work is done.
 
 ---
 
@@ -256,7 +212,8 @@ Each kit is a complete, standalone agent army (Commander → Officers → Soldie
 ```bash
 pip install -e ".[dev]"
 pytest
-# offline — SDK stub, no API key, no network
+# offline — the engine subprocess is monkeypatched: no API key, no network,
+# and no installed engine CLI required
 ```
 
 ---

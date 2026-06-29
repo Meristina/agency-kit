@@ -20,9 +20,9 @@ prose/documentation layer rendered for humans and Claude Code agents.
 
 | # | Department | Role | Grade | Kit |
 |---|---|---|---|---|
-| 1 | **product**   | Full product lifecycle — discovery, roadmaps, JTBD, PMF, prioritisation, specs, scope | 🎖️ elite | `product-kit` |
-| 2 | **marketing** | Campaigns, content, positioning, brand, launch comms, SEO, growth, analytics | 🎖️ elite | `marketing-kit` |
-| 3 | **solve**     | Problem-solving, root-cause analysis, decision intelligence, architecture, algorithms | 🎖️ elite | `solve-kit` |
+| 1 | **solve**     | Problem-solving, root-cause analysis, decision intelligence, architecture, algorithms | 🎖️ elite | `solve-kit` |
+| 2 | **product**   | Full product lifecycle — discovery, roadmaps, JTBD, PMF, prioritisation, specs, scope | 🎖️ elite | `product-kit` |
+| 3 | **marketing** | Campaigns, content, positioning, brand, launch comms, SEO, growth, analytics | 🎖️ elite | `marketing-kit` |
 | 4 | **finance**   | Business case, pricing, P&L, cash flow, commercial pipeline, closing, investor reporting | 🎖️ elite | `finance-kit` |
 | 5 | **comms**     | Corporate comms, PR/media, crisis management, public affairs B2G, ESG/CSRD, events | 🎖️ elite | `comms-kit` |
 | 6 | **data**      | Data strategy, engineering pipelines, analytics/BI, ML/LLMOps, data quality, data products | 🎖️ elite | `data-kit` |
@@ -30,7 +30,7 @@ prose/documentation layer rendered for humans and Claude Code agents.
 | 8 | **people**    | Org design, talent acquisition, L&D, performance, compensation, DEI, culture, people analytics | 🎖️ elite | `people-kit` |
 | 9 | **tech**      | Architecture, DevOps/IaC, security (OWASP, SOC2, zero trust), engineering excellence, DORA metrics | 🎖️ elite | `tech-kit` |
 
-Default execution order: `product → marketing → solve → finance → comms → data → ops → people → tech`
+Default execution order: `solve → product → marketing → finance → comms → data → ops → people → tech`
 
 ---
 
@@ -51,6 +51,8 @@ These apply to **every** agency-level agent (commander, inspector, router).
    - **Art. II** — Ethics: no harmful, discriminatory, or unlawful outputs.
    - **Art. IV** — Department sovereignty: each commander owns its discipline.
    - **Art. VI** — Don't over-route: deploy the minimum set of departments.
+     `solve` leads the order but is problem-led, not default-on — route it only to
+     diagnose a problem, never for a create/brand/research mission.
    - **Art. IX** — The inspector is mandatory at the end of every mission.
 
 4. **Headless / autonomous mode:** Never block on questions when running via
@@ -76,9 +78,8 @@ Router-agency runs at 🔵 standard (fast classification call).
 
 ## Adding a Department
 
-1. Add a row to `_ROSTER` in `agency_kit/departments.py`.
-2. Add `try/except ImportError` block in `agency_kit/commander.py` for the new kit.
-3. Add the new `_HAS_*` flag to `DEPT_INSTALLED` in `commander.py`.
-4. Add keyword detection in `_keyword_classify` in `agency_kit/router.py`.
-5. Update the table above in this file.
-6. Run `pytest tests/ -q` — all tests should still pass.
+1. Add a row to `_ROSTER` and an edge to `DEPT_DEPENDENCIES` in `agency_kit/departments.py`.
+2. Add keyword detection in `keyword_classify` in `agency_kit/router.py`.
+3. Add a `_shared-<dept>.md` doctrine file under `agents/` (the engine loads it at runtime).
+4. Update the table above in this file.
+5. Run `pytest tests/ -q` — all tests should still pass.

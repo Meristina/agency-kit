@@ -2,11 +2,11 @@
 name: routing
 description: >-
   Classify a mission goal into the minimal ordered set of departments to deploy
-  (product / marketing / solve / finance / comms / data / ops / people / tech).
-  Used by the agency commander in Phase 0 (Frame)
-  via the router_agent, and again whenever the commander must reclassify mid-mission
-  after a REDIRECT or a direction-check correction. Not a problem-solving method —
-  it is the classification logic the whole agency pipeline depends on.
+  (solve / product / marketing / finance / comms / data / ops / people / tech).
+  Used by the agency commander in Phase 0 (Frame) to pick the route, and again
+  whenever the commander must reclassify mid-mission after a REDIRECT or a
+  direction-check correction. Not a problem-solving method — it is the
+  classification logic the whole agency pipeline depends on.
 ---
 
 # Routing — Field Manual
@@ -51,15 +51,17 @@ The order is the execution sequence — each department's output feeds the next.
 
 Default pipeline order when multiple departments are needed:
 
-1. **product** first — establishes what is being built, for whom, and why. Its strategy
-   and outcome targets become ground truth for downstream departments.
-2. **marketing** second — takes the product output as the positioning input. It does not
+1. **solve** first (when routed) — frames the problem, isolates the root cause, and sets
+   the solution direction. Its diagnosis is the foundational context every downstream
+   department builds against (or runs standalone if it is the only routed department).
+   **Problem-led, not default-on:** routed only for a genuine problem (root cause, blocker,
+   failing process, hard decision) — never for a create/brand/research mission.
+2. **product** second — builds against solve's diagnosis: establishes what is being built,
+   for whom, and why. Its strategy and outcome targets become ground truth for downstream.
+3. **marketing** third — takes the product output as the positioning input. It does not
    re-derive the product strategy; it builds on it.
-3. **solve** third — applies decision intelligence to the blockers, trade-offs, or open
-   decisions the upstream departments surfaced. Or runs standalone if it is the only
-   routed department.
 4. **finance** — evaluates economic viability, pricing, and commercial strategy. Takes
-   product, marketing, and solve outputs as inputs; does not re-derive upstream strategy.
+   solve, product, and marketing outputs as inputs; does not re-derive upstream strategy.
 5. **comms** — corporate communications, PR/media, crisis, ESG. Runs after
    product/marketing when messaging and narrative are needed externally.
 6. **data** — data strategy, pipelines, analytics/BI, ML/LLMOps. Runs when the mission
@@ -78,6 +80,15 @@ Common multi-domain patterns:
 - "Launch with a financial model" → `["product", "marketing", "finance"]`
 - "Pitch investors" → `["product", "finance"]`
 - "End-to-end engagement" / "full agency" → minimum set the goal needs (never all nine reflexively — Art. VI)
+
+**Solve is problem-led, not default-on.** Solve leads the order and feeds every department,
+but only as "foundational *when in scope*." Route it only to diagnose or resolve a problem —
+never for greenfield creation, branding, or pure research, where there is nothing to diagnose:
+- "Market study to launch an app" → `["product"]` (discovery — NOT solve)
+- "Build our brand on a tight budget" → `["marketing"]` (NOT solve; budget is a marketing
+  constraint, not finance)
+- "End-to-end build of a new app" → `["product", "marketing", "finance"]` (NOT solve — creation, not repair)
+- "Our app is losing users — diagnose and relaunch" → `["solve", "product", "marketing"]` (solve leads: a real problem)
 
 ### Rule 3 — Classify by dominant intent
 When a goal mixes signals, pick the **dominant intent** — the discipline that owns the

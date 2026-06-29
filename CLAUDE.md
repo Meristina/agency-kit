@@ -4,53 +4,57 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo does
 
-agency-kit is a thin routing and orchestration layer that sits above nine optional department kits (product, marketing, solve, finance, comms, data, ops, people, tech). It reads a mission goal, classifies which departments are needed and in what order, runs them sequentially (each reads the previous dept's output), and passes the whole result through a cross-department inspector.
+agency-kit is a thin routing and orchestration layer over nine departments (solve, product, marketing, finance, comms, data, ops, people, tech — the **solve-first** canonical order of `DEPT_NAMES`). It reads a mission goal, classifies which departments are needed and in what order, runs them sequentially (each reads the previous dept's output), synthesises one cross-department deliverable, and inspects it.
+
+Missions execute through a **local agent CLI engine** (Claude Code / Codex / Gemini) via subprocess — **no API key, no SDK, no `pip` dependencies**. Each CLI uses its own authenticated session and its own live web search. There are no installable department "kits"; every department is played by the engine model, guided by the doctrine files in `agents/`.
 
 ## Commands
 
 ```bash
-# Install (dev)
-pip install -e ".[dev]"         # core + pytest stubs
-pip install -e ".[all]"         # all nine department kits
-pip install -e ".[product,tech]" # individual kits
+# Install (dev) — agency-kit has NO runtime dependencies
+pip install -e ".[dev]"         # core + pytest
+pip install -e ".[pdf]"         # PDF export extra
+pip install -e ".[tui]"         # terminal UI extra
 
-# Test
-pytest tests/ -v                # full offline suite (SDK + 9 kits are stubbed)
-pytest tests/test_structure.py -v  # structural invariants only
-pytest tests/ -k "test_router"  # single test by name
+# Test  (fully offline; engine subprocess is monkeypatched)
+pytest tests/ -q
+pytest tests/test_structure.py -q   # structural invariants only
+pytest tests/test_engine.py -q      # engine path
+pytest tests/test_router.py -q      # keyword router
 
-# Health check (needs API key + at least one kit installed)
+# Health check (constitution present + at least one engine CLI on PATH)
 agency check
 
-# CLI
+# CLI — pick the engine with --engine (default: claude-code)
 agency init [path] [--agent claude|codex|cursor|copilot|gemini|opencode]
-agency run "goal" [--dry-run] [--steer] [--parallel]
+agency run "goal" [--dry-run] [--engine claude-code|codex|gemini]
 agency missions
-agency resume <mission_id>
-agency sync [--allow-missing]
-agency batch add "goal" / run / status / clear
+agency resume <mission_id> [--engine ...]    # re-runs the saved goal via the engine
+agency sync [--strict]
+agency batch add "goal" / run [--engine ...] / status / clear
 agency export <mission_id>      # requires pip install -e ".[pdf]"
 agency tui                      # requires pip install -e ".[tui]"
 ```
 
 ## Architecture
 
-### Mission loop (`agency_kit/mission.py`)
+### Mission loop (`agency_cli/engines/cli_engine.py` → `run_mission_cli`)
 
 ```
-run_mission(goal)
-  CLASSIFY → classify(goal) returns ordered dept list  (router_agent, STANDARD model)
-  ITERATE up to 3×:
-    EXECUTE → Runner.run_sync(agency_commander, brief)
-                commander calls: classify → depts in order → synthesise
-    INSPECT → Runner.run_sync(agency_inspector, deliverable)
-                PASS          → return dossier
-                PASS_WITH_FIXES → extract fixes, loop back
-                VETO          → extract fixes, loop back  (saved to disk)
-  CAP → deliver with residual_risk note if MAX_ITERS reached
+run_mission_cli(goal, engine)
+  ROUTE      → _route_via_cli asks the engine CLI for the dept list (JSON array);
+               falls back to router.keyword_classify on unparseable output
+  EXECUTE    → for each routed dept (in order): subprocess _call(engine, prompt)
+               prompt = goal + prior dept outputs + agents/_shared-<dept>.md doctrine
+  SYNTHESIZE → _call(engine, commander-agency.md + all dept outputs)
+  INSPECT    → _call(engine, inspector-agency.md + deliverable) → verdict text
+  → returns a dossier dict (goal, route, dept_outputs, delivered, verdicts)
 ```
 
-Quota / rate-limit detection wraps every `Runner.run_sync` call — on detection the mission saves state (`status: paused_rate_limit`) and exits cleanly; `agency resume` replays from the checkpoint.
+`runner_bridge.run` wraps this: it assigns a `mission_id`, saves to the `~/.agency`
+store (so `agency missions/resume/export` see it), and writes the project-local
+`missions/<id>/{dossier,deliverable}.md`. The engine is single-shot — there is no
+quota/rate-limit checkpoint; `agency resume` re-runs the saved goal.
 
 ### Cross-department dossier
 
@@ -70,29 +74,25 @@ Carried as a JSON block through every brief:
 }
 ```
 
-Departments are sovereign (Art. IV): the commander passes the full previous output forward unchanged — never summarises or rewrites a kit's deliverable.
+Departments are sovereign (Art. IV): the engine passes the full previous output forward unchanged — never summarises or rewrites a department's deliverable.
 
-### Department wiring (`agency_kit/commander.py`)
+### Engine wiring (`agency_cli/engines/cli_engine.py`)
 
-Each of the 9 kits is imported inside `try/except ImportError` guarded by a `_HAS_<DEPT>` boolean. Two kits (`marketing-kit`, `solve-kit`) export `commander` rather than `commander_<dept>` — handle with a nested alias:
+`ENGINES` maps an engine name to its headless CLI invocation; all three enable live web search (Art. I requires real sourced facts):
 
 ```python
-try:
-    try:
-        from solve_kit.commander import commander_solve
-    except ImportError:
-        from solve_kit.commander import commander as commander_solve
-    _HAS_SOLVE = True
-except ImportError:
-    commander_solve = None
-    _HAS_SOLVE = False
+ENGINES = {
+    "claude-code": ["claude", "--allowedTools", "WebSearch", "-p"],
+    "codex":       ["codex", "--search", "exec", "--color", "never", "--sandbox", "read-only", "--"],
+    "gemini":      ["gemini", "-p"],
+}
 ```
 
-`DEPT_INSTALLED` (exported from `commander.py`) is the live dict `{dept: bool}` used by `--dry-run` and tests.
+`_call(cmd, prompt)` shells out via `subprocess.run`. Adding an engine = one row in `ENGINES` + `_ROUTE_CMD`, but only if it can do live web search headlessly (without it a mission would fabricate data — Art. I). `cursor-agent` (no web search), `opencode` (needs explicit model), and `copilot` (search unverified) are deliberately not wired.
 
 ### Single source of truth for department names
 
-`agency_kit/departments.py` exports `DEPT_NAMES` (ordered tuple), `VALID_DEPTS` (frozenset), and `dept_list_text()`. The router, commander, inspector, and CLI all import from here. Adding a department means updating only this file + the try/except block in `commander.py`.
+`agency_kit/departments.py` exports `DEPT_NAMES` (ordered tuple, **solve-first**), `VALID_DEPTS` (frozenset), `DEPT_DEPENDENCIES` + `dependency_layers()` (the canonical ordering model), and `dept_list_text()`. The keyword router and the engine import from here. Adding a department means updating only this file (one `_ROSTER` row + one `DEPT_DEPENDENCIES` entry).
 
 ### Payload (`agency_cli/payload/`)
 
@@ -113,51 +113,38 @@ except ImportError:
 
 All source files under `agents/` are mirrored to `payload/agents/`. The drift guard test (`test_payload_agent_matches_source`) catches divergence — run `agency sync` to fix.
 
-### Jurisdiction injection (`AK_JURISDICTION`)
-
-When set (`eu` / `us` / `fr`), the five compliance-heavy department commands (ops, tech, comms, people, data) load `agents/_shared-{jurisdiction}.md` in step 1 and pass it as regulatory context to the commander in step 3.
-
 ## Key files
 
 | File | Role |
 |---|---|
-| `agency_kit/router.py` | `router_agent` + `classify(goal)` — dept routing + keyword fallback |
-| `agency_kit/commander.py` | `agency_commander` — meta-orchestrator; all dept wiring + `DEPT_INSTALLED` |
-| `agency_kit/inspector.py` | `agency_inspector` — cross-dept consistency gate (PASS / PASS-WITH-FIXES / VETO) |
-| `agency_kit/mission.py` | `run_mission()` / `resume_mission()` — mission loop, quota handling |
-| `agency_kit/store.py` | `save()`, `load()`, `list_missions()`, atomic `new_mission_id()` |
-| `agency_kit/parallel.py` | `run_parallel_mission()` — concurrent dept execution variant |
-| `agency_kit/models.py` | `ELITE` / `STANDARD` / `JURISDICTION` from env; `.env` auto-load |
-| `agency_kit/departments.py` | Single source of truth for 9 dept names |
-| `agency_kit/web.py` | `web_tools()` — search backend selected by `AK_SEARCH` |
-| `agency_cli/cli.py` | All CLI subcommands |
+| `agency_cli/engines/cli_engine.py` | `run_mission_cli()` + `ENGINES` — the whole route→execute→synthesize→inspect loop via subprocess |
+| `agency_cli/runner_bridge.py` | `run()` / `resume()` — drive the engine, save to store + serialize `missions/<id>/` |
+| `agency_cli/cli.py` | All CLI subcommands + the `--engine` flag |
+| `agency_cli/batch_runner.py` | `agency batch` queue — runs each goal through the engine |
+| `agency_cli/scaffolder.py` | `agency init` + `agency check` (constitution + engine-on-PATH) |
 | `agency_cli/sync_payload.py` | Payload regeneration logic + pre-flight safety guard |
+| `agency_kit/router.py` | `keyword_classify()` — dependency-free fallback router (solve-first) |
+| `agency_kit/departments.py` | Single source of truth: `DEPT_NAMES`, `DEPT_DEPENDENCIES`, `dependency_layers()` |
+| `agency_kit/store.py` | `save()`, `load()`, `list_missions()`, atomic `new_mission_id()` |
 | `.agency/memory/constitution.md` | 10 articles — every command re-reads this before acting |
 | `docs/ARCHITECTURE.md` | Full routing table, pipeline diagram, design decisions |
 
-## Environment variables
+## Environment / configuration
 
-```bash
-AK_ELITE_MODEL=gpt-4o          # commander, inspector, dept commanders (default: gpt-4o)
-AK_STANDARD_MODEL=gpt-4o-mini  # routing agent (default: gpt-4o-mini)
-AK_SEARCH=ddg                  # ddg | tavily | gemini | openai (auto-detects from keys when unset)
-AK_JURISDICTION=eu             # eu | us | fr — injects regulatory context into compliance depts
-AK_HTTP_TIMEOUT=90             # HTTP timeout in seconds; 0 = disable
-OPENAI_API_KEY=...
-# Each kit reads its own vars: PK_ELITE_MODEL, MK_ELITE_MODEL, SK_ELITE_MODEL, etc.
-```
+agency-kit reads **no** environment variables for execution. Each engine CLI handles its own auth and model selection:
+- **claude-code** — `claude` CLI session (run `claude` once to authenticate)
+- **codex** — `codex` CLI session
+- **gemini** — `gemini` CLI session
 
-Anthropic or Gemini models work via `OPENAI_BASE_URL` — no extra dependency needed.
+Pick the engine per run with `--engine claude-code|codex|gemini` (default `claude-code`).
 
 ## Test architecture
 
-`tests/conftest.py` stubs two layers before any test imports `agency_kit`:
-1. The openai-agents SDK (`agents` module — `Agent`, `Runner`, `function_tool`, `WebSearchTool`)
-2. All nine department kits and their `.commander` submodules
-
-This lets the full suite run offline (no API key, no installed kits) and tests the fully-wired path (all 9 `_HAS_*` flags `True`) rather than the degraded/missing-kit path.
-
-Tests drive `Runner.run_sync` via monkeypatching on `mission.Runner`.
+`tests/conftest.py` is intentionally minimal — there is no SDK to stub. The suite runs fully offline:
+- `test_engine.py` — monkeypatches `cli_engine._call` (the subprocess wrapper) to exercise the mission loop without any CLI installed.
+- `test_router.py` — the pure keyword classifier.
+- `test_structure.py` — import spine, the `dependency_layers` ordering model, and the payload drift guards.
+- `test_cli.py` — CLI dispatch with `runner_bridge`/`batch_runner` monkeypatched.
 
 ## Constitution
 

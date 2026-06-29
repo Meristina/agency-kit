@@ -6,6 +6,8 @@ the scenario so a future reader knows why the guard exists.
 
 from pathlib import Path
 
+import pytest
+
 
 # ---- runner_bridge._dossier_md ----------------------------------------------
 # Bug: field list was copied from product-kit and contained "baseline"/"assumptions"
@@ -100,19 +102,19 @@ def test_install_claude_with_skills_dir_copies_them(tmp_path):
 
 
 # ---- scaffolder.check() -----------------------------------------------------
-# Bug: find_spec("agency_commander") checked a non-existent top-level module;
-# "agency_commander importable" check was always False even when installed.
+# Engine-only health check: agency_kit importable + at least one engine on PATH.
 
-def test_check_agency_commander_importable_when_installed(tmp_path):
+def test_check_reports_agency_kit_importable(tmp_path):
     from agency_cli.scaffolder import check
 
     results = check(str(tmp_path))
     by_label = {label: ok for label, ok, _ in results}
 
-    assert "agency_commander importable" in by_label, "health check missing 'agency_commander importable' entry"
-    assert by_label["agency_commander importable"], (
-        "agency_kit.commander not found — the find_spec target may have regressed "
-        "to a wrong module name (was: 'agency_commander', correct: 'agency_kit.commander')"
+    assert "agency_kit importable" in by_label, "health check missing 'agency_kit importable' entry"
+    assert by_label["agency_kit importable"], "agency_kit core not importable"
+    # The engine-availability check is always present (value depends on PATH).
+    assert any("engine CLI available" in label for label in by_label), (
+        "health check missing the engine-on-PATH entry"
     )
 
 
@@ -161,37 +163,28 @@ def test_cmd_resume_missing_mission(monkeypatch, capsys):
     monkeypatch.setattr("agency_cli.runner_bridge.resume", _raise)
     # Stub missions_path (no mkdir) so the error message is pure display with no disk side-effect.
     monkeypatch.setattr("agency_kit.store.missions_path", lambda: Path("/stub/missions"))
-    rc = _cmd_resume(Namespace(mission_id="nonexistent-id", path=".", steer=False))
+    rc = _cmd_resume(Namespace(mission_id="nonexistent-id", path=".", engine="claude-code"))
     assert rc == 2
     err = capsys.readouterr().err
     assert "nonexistent-id" in err
 
 
 # ---- agency export ----------------------------------------------------------
-# Bug surface: _cmd_export must catch both FileNotFoundError (mission absent)
-# and ImportError (WeasyPrint not installed) and return exit code 2.
+# Bug surface: _cmd_export must catch BOTH error paths and yield rc==2 with an
+# 'error' message — FileNotFoundError (mission/deliverable absent) and ImportError
+# (WeasyPrint not installed). One parametrize over the raised exception covers both.
 
-def test_cmd_export_missing_mission(monkeypatch, capsys):
+@pytest.mark.parametrize("exc", [
+    FileNotFoundError("deliverable.md not found for mission: x"),
+    ImportError('WeasyPrint not installed. Run:  pip install -e ".[pdf]"'),
+])
+def test_cmd_export_error_paths_return_rc2(monkeypatch, capsys, exc):
     from agency_cli import exporter
     from agency_cli.cli import _cmd_export
     from argparse import Namespace
 
     def _raise(mid):
-        raise FileNotFoundError(f"deliverable.md not found for mission: {mid}")
-
-    monkeypatch.setattr(exporter, "export_pdf", _raise)
-    rc = _cmd_export(Namespace(mission_id="nonexistent-id"))
-    assert rc == 2
-    assert "error" in capsys.readouterr().err.lower()
-
-
-def test_cmd_export_missing_weasyprint(monkeypatch, capsys):
-    from agency_cli import exporter
-    from agency_cli.cli import _cmd_export
-    from argparse import Namespace
-
-    def _raise(mid):
-        raise ImportError('WeasyPrint not installed. Run:  pip install -e ".[pdf]"')
+        raise exc
 
     monkeypatch.setattr(exporter, "export_pdf", _raise)
     rc = _cmd_export(Namespace(mission_id="any-mission"))
@@ -234,65 +227,52 @@ def test_cmd_tui_success(monkeypatch):
     assert launched
 
 
-# ---- agency run --parallel --------------------------------------------------
-# Bug surface: --parallel flag was added to the CLI parser but runner_bridge.run
-# was never tested with parallel=True; a typo in the kwarg name would be silent.
+# ---- agency run forwards the engine -----------------------------------------
+# Bug surface: the --engine flag must reach runner_bridge.run; a typo in the
+# kwarg name would silently default the engine.
 
-def test_cmd_run_parallel_flag(monkeypatch, tmp_path):
+def test_cmd_run_forwards_engine(monkeypatch, tmp_path):
     from agency_cli.cli import _cmd_run
     from argparse import Namespace
 
+    from agency_cli.runner_bridge import MissionResult
+
     calls = {}
 
-    def _fake_run(goal, project_root, steer, parallel, engine="api"):
-        calls["parallel"] = parallel
+    def _fake_run(goal, project_root, engine="claude-code"):
+        calls["engine"] = engine
         calls["goal"] = goal
-        return tmp_path / "001-result"
+        return MissionResult(path=tmp_path / "001-result", dossier={})
 
     monkeypatch.setattr("agency_cli.runner_bridge.run", _fake_run)
-    rc = _cmd_run(Namespace(goal="test parallel goal", path=str(tmp_path), steer=False, parallel=True, engine="api"))
+    rc = _cmd_run(Namespace(goal="ship it", path=str(tmp_path), engine="gemini", dry_run=False))
     assert rc == 0
-    assert calls.get("parallel") is True, "--parallel flag not forwarded to runner_bridge.run"
+    assert calls.get("engine") == "gemini", "--engine not forwarded to runner_bridge.run"
 
 
 # ---- agency run --dry-run ---------------------------------------------------
-# Bug surface: _cmd_dry_run prints the planned route without making an API call.
-# Verify the keyword classifier is invoked and the output mentions the route.
+# Bug surface: _cmd_dry_run prints the planned keyword route without any engine call.
 
 def test_cmd_dry_run_shows_route(capsys, monkeypatch):
     from agency_cli.cli import _cmd_run
     from argparse import Namespace
 
     monkeypatch.setattr("agency_kit.router.keyword_classify", lambda goal: ["product", "marketing"])
-    monkeypatch.setattr("agency_kit.commander.DEPT_INSTALLED", {"product": True, "marketing": False})
 
-    rc = _cmd_run(Namespace(goal="launch our product", path=".", steer=False, parallel=False, dry_run=True))
+    rc = _cmd_run(Namespace(goal="launch our product", path=".", engine="claude-code", dry_run=True))
     assert rc == 0
     out = capsys.readouterr().out
     assert "product" in out
     assert "marketing" in out
     assert "dry-run" in out.lower()
-    assert "no api call" in out.lower()
-
-
-def test_cmd_dry_run_missing_dept_install_hint(capsys, monkeypatch):
-    from agency_cli.cli import _cmd_run
-    from argparse import Namespace
-
-    monkeypatch.setattr("agency_kit.router.keyword_classify", lambda goal: ["data", "tech"])
-    monkeypatch.setattr("agency_kit.commander.DEPT_INSTALLED", {"data": False, "tech": False})
-
-    rc = _cmd_run(Namespace(goal="build data pipeline", path=".", steer=False, parallel=False, dry_run=True))
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert "pip install" in out, "--dry-run should hint pip install for missing departments"
+    assert "no engine call" in out.lower()
 
 
 # ---- agency batch -----------------------------------------------------------
 # Bug surface: _cmd_batch dispatches to batch_runner functions via the batch_cmd
 # attribute — verify each subcommand hits the right function and returns its code.
 
-def test_cmd_batch_add(monkeypatch, capsys):
+def test_cmd_batch_add(monkeypatch):
     from agency_cli.cli import _cmd_batch
     from argparse import Namespace
     from agency_cli import batch_runner
@@ -312,7 +292,7 @@ def test_cmd_batch_add(monkeypatch, capsys):
     assert calls["priority"] == 3
 
 
-def test_cmd_batch_status(monkeypatch, capsys):
+def test_cmd_batch_status(monkeypatch):
     from agency_cli.cli import _cmd_batch
     from argparse import Namespace
     from agency_cli import batch_runner
@@ -343,16 +323,16 @@ def test_cmd_batch_run_flags(monkeypatch):
 
     calls = {}
 
-    def _fake_run(resume_paused, retry_failed, limit):
-        calls.update({"rp": resume_paused, "rf": retry_failed, "lim": limit})
+    def _fake_run(retry_failed, limit, engine):
+        calls.update({"rf": retry_failed, "lim": limit, "engine": engine})
         return 0
 
     monkeypatch.setattr(batch_runner, "run", _fake_run)
-    rc = _cmd_batch(Namespace(batch_cmd="run", resume_paused=True, retry_failed=True, limit=5))
+    rc = _cmd_batch(Namespace(batch_cmd="run", retry_failed=True, limit=5, engine="codex"))
     assert rc == 0
-    assert calls["rp"] is True
     assert calls["rf"] is True
     assert calls["lim"] == 5
+    assert calls["engine"] == "codex"
 
 
 # ---- batch_runner file I/O --------------------------------------------------

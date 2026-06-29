@@ -1,6 +1,6 @@
 """Mission store — persist dossiers to disk; list and resume missions.
 
-Saves each dossier to ~/.agency/missions/<YYYYMMDD-HHMMSS>-<slug>/dossier.json
+Saves each dossier to ~/.agency/missions/<YYYYMMDD-HHMMSS-ffffff>-<slug>/dossier.json
 so missions survive across CLI runs and can be resumed or audited offline.
 """
 
@@ -36,49 +36,53 @@ def agency_dir() -> Path:
     return d
 
 
+def split_frontmatter(content: str) -> tuple:
+    """Canonical YAML front-matter splitter. Returns ``(frontmatter, body)``.
+
+    The closing delimiter is matched as a line of its own (``\\n---``), so a
+    ``---`` that appears inside the body is not mistaken for the end of the
+    front-matter. If no well-formed front-matter is present, returns
+    ``("", content)`` (the whole input is the body). This is the single
+    implementation used by ``strip_frontmatter`` (here), ``cli_engine``, and
+    ``integrations`` so the three never diverge.
+    """
+    if not content.startswith("---"):
+        return "", content
+    end = content.find("\n---", 3)
+    if end == -1:
+        return "", content
+    return content[3:end], content[end + 4:]
+
+
 def strip_frontmatter(content: str) -> str:
     """Strip YAML front-matter (---...---) written by store.save().
 
     Returns the body text with leading/trailing whitespace removed.
     If no front-matter is present, returns the original string unchanged.
     """
-    if content.startswith("---"):
-        parts = content.split("---", 2)
-        if len(parts) >= 3:
-            return parts[2].strip()
-    return content
+    fm, body = split_frontmatter(content)
+    return body.strip() if fm else content
 
 
 def new_mission_id(goal: str) -> str:
-    """Generate a unique mission ID.
+    """Generate a mission ID of the form ``<YYYYMMDD-HHMMSS-ffffff>-<slug>``.
 
-    Uses mkdir-as-atomic-lock (O_CREAT|O_EXCL semantics on POSIX) to prevent
-    two parallel batch workers from producing the same timestamp-based ID.
-    Falls back to the bare timestamp+slug if the lock can't be acquired within
-    100 ms (safe — each worker's slug differs by goal text).
+    The microsecond field (``%f``) is the uniqueness guarantee: two workers that
+    start in the same second still get distinct IDs. No filesystem lock is used —
+    a lock would only serialise the call, not inject entropy, so two same-second
+    same-goal workers would have collided whether it was held or not.
     """
-    import time
-    lock = agency_dir() / ".mission-id.lock"
-    for _ in range(20):
-        try:
-            lock.mkdir(exist_ok=False)
-            break
-        except FileExistsError:
-            time.sleep(0.005)
-    try:
-        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-        return f"{ts}-{slug(goal)}"
-    finally:
-        try:
-            lock.rmdir()
-        except Exception:
-            pass
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    return f"{ts}-{slug(goal)}"
 
 
-def save(dossier: dict) -> Path:
+def save(dossier: dict) -> "Path | None":
     """Persist the dossier as JSON. Creates/overwrites <missions_dir>/<mission_id>/dossier.json.
 
-    Never raises — a disk failure must not abort a live mission.
+    Returns the dossier.json path on success, or ``None`` when there is nothing to
+    persist — i.e. the dossier carries no ``mission_id`` (call ``new_mission_id``
+    first), or a disk write failed. Never raises: a disk failure must not abort a
+    live mission. Callers must handle the ``None`` case before using the result.
     """
     try:
         mid = dossier.get("mission_id")
@@ -135,6 +139,8 @@ def list_missions() -> list:
                 "verdict": last_verdict,
                 "delivered": bool(data.get("delivered")),
             })
-        except Exception:
+        except (OSError, json.JSONDecodeError, KeyError):
+            # Recoverable: a corrupt/unreadable JSON file or a missing key — skip
+            # that one mission. Programming errors (other exceptions) propagate.
             continue
     return result

@@ -1,4 +1,7 @@
-"""agency — Agency-Kit CLI. Subcommands: init, run, check, version."""
+"""agency — Agency-Kit CLI.
+
+Subcommands: init, run, missions, resume, check, sync, tui, export, batch.
+"""
 
 import argparse
 import sys
@@ -24,23 +27,13 @@ def _cmd_init(args) -> int:
 
 
 def _cmd_dry_run(args) -> int:
-    try:
-        from agency_kit.router import keyword_classify
-        from agency_kit.commander import DEPT_INSTALLED
-    except ModuleNotFoundError as e:
-        print(f"error: {e}. Install the engine SDK: pip install openai-agents", file=sys.stderr)
-        return 2
-    _installed = DEPT_INSTALLED
+    from agency_kit.router import keyword_classify
     route = keyword_classify(args.goal)
     print(f"\n[dry-run] Goal: {args.goal}")
-    print(f"[dry-run] Planned route ({len(route)} dept(s), keyword classifier — no API call):")
+    print(f"[dry-run] Planned route ({len(route)} dept(s), keyword classifier — no model call):")
     for i, dept in enumerate(route, 1):
-        flag = "✓ installed" if _installed.get(dept) else "✗ not installed (will be skipped)"
-        print(f"  {i}. {dept:<12}  {flag}")
-    missing = [d for d in route if not _installed.get(d)]
-    if missing:
-        print(f"\n[dry-run] Install missing:  pip install -e \".[{','.join(missing)}]\"")
-    print(f"\n[dry-run] No API call made. Remove --dry-run to execute.")
+        print(f"  {i}. {dept}")
+    print("\n[dry-run] No engine call made. Remove --dry-run to execute.")
     return 0
 
 
@@ -49,17 +42,26 @@ def _cmd_run(args) -> int:
         return _cmd_dry_run(args)
     from . import runner_bridge
     try:
-        out = runner_bridge.run(
-            args.goal, project_root=args.path, steer=args.steer,
-            parallel=getattr(args, "parallel", False),
-            engine=getattr(args, "engine", "api"),
+        result = runner_bridge.run(
+            args.goal, project_root=args.path,
+            engine=getattr(args, "engine", "claude-code"),
         )
-    except ModuleNotFoundError as e:
-        print(f"error: {e}. `agency run` needs the engine SDK: pip install openai-agents",
-              file=sys.stderr)
+    except (RuntimeError, ValueError) as e:
+        print(f"error: {e}", file=sys.stderr)
         return 2
-    print(f"Mission written to: {out}")
+    _print_mission_result(result)
     return 0
+
+
+def _print_mission_result(result) -> None:
+    """Show the project path AND the store mission_id (the id `resume`/`export` need)."""
+    verdicts = result.dossier.get("verdicts") or []
+    verdict = verdicts[-1].get("verdict", "—") if verdicts else "—"
+    print(f"Mission written to: {result.path}")
+    print(f"  mission id : {result.dossier.get('mission_id', '?')}   (use with `agency resume` / `agency export`)")
+    print(f"  verdict    : {verdict}")
+    if result.dossier.get("residual_risk"):
+        print(f"  residual   : {result.dossier['residual_risk']}")
 
 
 def _cmd_missions(args) -> int:
@@ -81,23 +83,28 @@ def _cmd_resume(args) -> int:
     from agency_kit import store
     from . import runner_bridge
     try:
-        out = runner_bridge.resume(args.mission_id, project_root=args.path, steer=args.steer)
+        result = runner_bridge.resume(
+            args.mission_id, project_root=args.path,
+            engine=getattr(args, "engine", "claude-code"),
+        )
     except FileNotFoundError:
         print(f"error: mission '{args.mission_id}' not found in {store.missions_path()}",
               file=sys.stderr)
         return 2
-    except ModuleNotFoundError as e:
-        print(f"error: {e}. `agency resume` needs the engine SDK: pip install openai-agents",
-              file=sys.stderr)
+    except (RuntimeError, ValueError) as e:
+        print(f"error: {e}", file=sys.stderr)
         return 2
-    print(f"Mission resumed and written to: {out}")
+    _print_mission_result(result)
     return 0
 
 
 def _cmd_sync(args) -> int:
     from . import sync_payload
+    # Default: preserve mode (engine-only — sibling kits are usually absent; their
+    # payload snapshot is kept). --strict requires all kit repos for a clean full regen.
+    allow_missing = not getattr(args, "strict", False)
     try:
-        return sync_payload.main(allow_missing=getattr(args, "allow_missing", False))
+        return sync_payload.main(allow_missing=allow_missing)
     except RuntimeError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
@@ -134,9 +141,9 @@ def _cmd_batch(args) -> int:
         return batch_runner.add(args.goal, priority=args.priority, notes=args.notes)
     if cmd == "run":
         return batch_runner.run(
-            resume_paused=getattr(args, "resume_paused", False),
             retry_failed=getattr(args, "retry_failed", False),
             limit=getattr(args, "limit", 0),
+            engine=getattr(args, "engine", "claude-code"),
         )
     if cmd == "status":
         return batch_runner.status()
@@ -159,6 +166,12 @@ def _harness_choices():
     return list(SUPPORTED)
 
 
+def _engine_choices():
+    """Engine names from the single source of truth (cli_engine.ENGINES)."""
+    from .engines.cli_engine import ENGINES
+    return list(ENGINES)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agency",
@@ -173,27 +186,25 @@ def build_parser() -> argparse.ArgumentParser:
                     help="agent harness: claude | codex | cursor | copilot | gemini | opencode")
     pi.set_defaults(func=_cmd_init)
 
-    pr = sub.add_parser("run", help="headless mission via the engine (needs openai-agents)")
+    pr = sub.add_parser("run", help="headless mission via a local agent CLI engine")
     pr.add_argument("goal", help="the mission goal, one line")
     pr.add_argument("path", nargs="?", default=".", help="project dir for missions/ output")
-    pr.add_argument("--steer", action="store_true",
-                    help="open the interactive Direction Check (otherwise auto-proceeds)")
-    pr.add_argument("--parallel", action="store_true",
-                    help="run routed departments concurrently where possible (experimental)")
     pr.add_argument("--dry-run", dest="dry_run", action="store_true",
-                    help="classify goal with keyword heuristic and show planned route — no API call")
-    pr.add_argument("--engine", default="api",
-                    choices=["api", "claude-code", "codex"],
-                    help="backend engine: api (default, needs openai-agents) | claude-code | codex")
+                    help="classify goal with keyword heuristic and show planned route — no engine call")
+    pr.add_argument("--engine", default="claude-code",
+                    choices=_engine_choices(),
+                    help="local agent CLI engine (default: claude-code). Each uses its own auth + web search.")
     pr.set_defaults(func=_cmd_run)
 
     pm = sub.add_parser("missions", help="list saved missions from ~/.agency/missions/")
     pm.set_defaults(func=_cmd_missions)
 
-    pre = sub.add_parser("resume", help="resume a previously saved mission by ID")
+    pre = sub.add_parser("resume", help="re-run a saved mission's goal through the engine")
     pre.add_argument("mission_id", help="mission ID shown by `agency missions`")
     pre.add_argument("path", nargs="?", default=".", help="project dir for missions/ output")
-    pre.add_argument("--steer", action="store_true")
+    pre.add_argument("--engine", default="claude-code",
+                     choices=_engine_choices(),
+                     help="local agent CLI engine (default: claude-code)")
     pre.set_defaults(func=_cmd_resume)
 
     pc = sub.add_parser("check", help="prerequisite / health check")
@@ -201,8 +212,10 @@ def build_parser() -> argparse.ArgumentParser:
     pc.set_defaults(func=_cmd_check)
 
     ps = sub.add_parser("sync", help="regenerate the bundled payload from the repo source")
-    ps.add_argument("--allow-missing", action="store_true",
-                    help="run even if sibling dept-kit repos are absent (keeps their committed files)")
+    ps.add_argument("--strict", action="store_true",
+                    help="require ALL sibling dept-kit repos and do a clean full rebuild "
+                         "(default: preserve mode — regenerate agency-level files, keep the "
+                         "committed kit-derived payload snapshot for absent kits)")
     ps.set_defaults(func=_cmd_sync)
 
     pt = sub.add_parser("tui", help="launch terminal UI — Pipeline / Viewer / Analytics (needs pip install -e \".[tui]\")")
@@ -225,10 +238,11 @@ def build_parser() -> argparse.ArgumentParser:
     pbr = bsub.add_parser("run", help="execute pending goals sequentially")
     pbr.add_argument("--limit", type=int, default=0, metavar="N",
                      help="max goals to run this session (default: 0 = all pending)")
-    pbr.add_argument("--resume-paused", dest="resume_paused", action="store_true",
-                     help="also run goals paused by a previous rate-limit hit")
     pbr.add_argument("--retry-failed", dest="retry_failed", action="store_true",
                      help="also retry goals that errored")
+    pbr.add_argument("--engine", default="claude-code",
+                     choices=_engine_choices(),
+                     help="local agent CLI engine (default: claude-code)")
     pbr.set_defaults(func=_cmd_batch)
 
     pbs = bsub.add_parser("status", help="show queue and run state")
