@@ -1,5 +1,26 @@
 # Agency-Kit — Roadmap 360 B2B / B2G / B2C
 
+## Exécution — v0.2.0 · engine-only (juin 2026) ✅
+
+Le chemin **SDK / clé API a été supprimé**. Les missions tournent désormais via un
+**moteur CLI local** (Claude Code / Codex / Gemini) en subprocess — **pas de clé API,
+zéro dépendance runtime**. Chaque moteur utilise sa propre authentification + sa
+recherche web live.
+
+- `agency run "<goal>" --engine claude-code|codex|gemini` (défaut : `claude-code`).
+- **Boucle inspecteur réelle (Art. IX)** : sur VETO / PASS-WITH-FIXES, re-synthèse avec
+  les correctifs injectés, jusqu'à `MAX_ITERS = 3`, puis livraison avec `residual_risk`
+  si pas de PASS. → *validé en vrai : PASS-WITH-FIXES → iter 2 → PASS.*
+- **Routage solve-first** : solve est le diagnostic fondamental, routé uniquement pour
+  un vrai problème (Art. VI) — jamais pour créer / brander / étudier un marché.
+- `agency check` vérifie un moteur CLI sur le PATH ; `agency sync` est en mode preserve
+  par défaut (`--strict` pour un rebuild complet avec les 9 repos kits).
+
+> Les 9 kits ne sont plus des packages Python installables : leur **doctrine est
+> bundlée dans le payload** (`agency init`) et jouée par le moteur. Le build-out des
+> armées internes ci-dessous reste le même objectif produit — il est orthogonal au
+> moteur d'exécution.
+
 ## Kits câblés dans agency-kit (9/9)
 
 | # | Kit | Question métier | Statut |
@@ -96,16 +117,18 @@
 ## Vision architecture finale (9 kits)
 
 ```
-                    ┌──────────────────────────────────────────────┐
-                    │              AGENCY-KIT (méta)               │
-                    │   Router → Classify → Execute → Inspect      │
-                    └───────────────────┬──────────────────────────┘
+                ┌──────────────────────────────────────────────────┐
+                │                 AGENCY-KIT (méta)                │
+                │  Moteur CLI : Route → Execute → Synth → Inspect ⟲│
+                │      (claude-code / codex / gemini · web live)   │
+                └───────────────────────┬──────────────────────────┘
                                         │
-     ┌─────────┬─────────┬──────────────┼──────────────┬─────────┬─────────┐
-     │         │         │              │              │         │         │
-  product  marketing  finance        solve           tech      comms     ops
-   (quoi)  (vendre)  (viable)      (problème)      (build)   (réputa)  (process)
-                                                      ↑
-                                           data  people
-                                        (données) (talent)
+   ┌─────────┬──────────┬──────────┬────┴────┬──────────┬─────────┬─────────┐
+   │         │          │          │         │          │         │         │
+ solve    product   marketing   finance     tech      comms     ops
+(diag.→   (quoi)    (vendre)   (viable)   (build)   (réputa)  (process)
+ 1er, VI)                                                  data    people
+                                                        (données) (talent)
 ```
+
+*Solve mène (diagnostic fondamental, Art. VI) ; l'inspecteur reboucle sur VETO (Art. IX).*
