@@ -80,10 +80,12 @@ def _call(cmd_prefix: list, prompt: str, timeout: int = 900) -> str:
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"engine CLI '{binary}' timed out after {timeout}s.")
     if proc.returncode != 0:
-        stderr = proc.stderr.strip()
+        # Claude Code / Codex often write the real error to stdout in -p/exec mode,
+        # so surface whichever stream has content (stderr first) instead of a bare code.
+        detail = (proc.stderr.strip() or proc.stdout.strip())[:800]
         raise RuntimeError(
             f"CLI engine '{binary}' exited {proc.returncode}"
-            + (f": {stderr}" if stderr else "")
+            + (f": {detail}" if detail else " (no output on stdout or stderr)")
         )
     out = proc.stdout.strip()
     if not out:
