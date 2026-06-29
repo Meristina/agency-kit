@@ -41,11 +41,9 @@ Two non-negotiable guarantees:
    └─ 🎖️ inspector_agency      cross-department quality gate (VETO power)
 ```
 
-🎖️ **elite** — `AK_ELITE_MODEL` — meta-commander, inspector, department commanders
-🔵 **standard** — `AK_STANDARD_MODEL` — router (fast, single classification call)
-
-Departments are **optional extras**. A missing department drops out of the route
-silently — its absence is recorded in the dossier, never fabricated.
+Every role — router, each department, and the inspector — is played by the **engine
+model** chosen with `--engine` (Claude Code / Codex / Gemini). No SDK, no API key:
+the engine CLI brings its own model selection, auth, and live web search.
 
 ---
 
@@ -57,8 +55,7 @@ agency-kit/
 ├─ GUIDE.md                     ← this file
 ├─ pyproject.toml               ← pip packaging (package `agency-kit`)
 ├─ MANIFEST.in                  ← ships payload in sdist
-├─ requirements.txt             ← core dep (openai-agents)
-├─ .env.example                 ← env vars template (copy to .env)
+├─ requirements.txt             ← no runtime deps (engine CLI is external)
 │
 ├─ agents/                      ← Claude units (16 .md)
 │   ├─ commander-agency.md
@@ -93,19 +90,18 @@ agency-kit/
 │       ├─ new-mission.sh       ← scaffold missions/<NNN-slug>/
 │       └─ install-claude.sh    ← global ~/.claude install
 │
-├─ agency_kit/                  ← Python engine
-│   ├─ mission.py               ← control loop + direction check
-│   ├─ commander.py
-│   ├─ inspector.py
-│   ├─ router.py
-│   ├─ models.py                ← grade→model mapping (env-configurable)
-│   └─ web.py                   ← search backends
+├─ agency_kit/                  ← pure-stdlib core (no runtime deps, no SDK)
+│   ├─ __init__.py
+│   ├─ departments.py           ← single source of truth: 9-dept roster + dependency graph
+│   ├─ router.py                ← keyword_classify() — dependency-free fallback router
+│   └─ store.py                 ← save / load / list_missions for ~/.agency/missions/
 │
 ├─ agency_cli/                  ← `agency` CLI (init / run / check / sync / missions / resume / export / tui / batch)
-│   ├─ cli.py  scaffolder.py  integrations.py  runner_bridge.py  sync_payload.py
+│   ├─ cli.py  scaffolder.py  integrations.py  runner_bridge.py  batch_runner.py  sync_payload.py  exporter.py  tui.py
+│   ├─ engines/cli_engine.py    ← run_mission_cli(): route → execute → synthesize → inspect via subprocess
 │   └─ payload/                 ← bundled mirror (.agency + agents + skills) for the wheel
 │
-└─ tests/                       ← structural audit + e2e harness (SDK stub, no network)
+└─ tests/                       ← structural audit + engine path (offline, engine subprocess monkeypatched)
 ```
 
 ---
@@ -121,7 +117,7 @@ agency-kit/
 1. The Commander reads the dossier and **restates the goal in one sentence**.
 2. It asks **2–3 questions that change the plan** (constraint, expected outcome, data
    available) — each with a recommended default. It waits for answers.
-3. It calls **`router_agency`** (STANDARD grade) — one fast call:
+3. It calls **`router_agency`** (played by the chosen engine model) — one fast call:
    ```json
    {"departments": ["product", "marketing"], "rationale": "..."}
    ```
@@ -166,7 +162,7 @@ The result is written to `dossier.md → synthesis` and to `deliverable.md`.
 /agency.inspect $MISSION
 ```
 
-`inspector_agency` (ELITE grade) runs **3 checks**:
+`inspector_agency` (played by the chosen engine model) runs **3 checks**:
 
 1. **SOURCES** — every cross-department fact is cited and identical where shared.
    Hallucinated or uncited fact → **automatic VETO**.
@@ -195,7 +191,7 @@ goal           → original goal + Frame clarifications
 context        → sector · stage · constraints
 route          → ordered dept list + per-department rationale
 direction_check→ GO | REDIRECT | ADJUST + note  (slash-command vocabulary in frame.md/mission.md;
-                   the Python runtime records PROCEED or STEER in dossier['direction_check']['choice'])
+                   the engine path sets dossier['direction_check'] = None — it is single-shot)
 dept_outputs
   .product     → full product-kit deliverable (or not_installed / not_routed)
   .marketing   → full marketing-kit deliverable
@@ -262,44 +258,37 @@ Or step by step for more control:
 
 ---
 
-## 7. Running a mission — OpenAI / CLI side
+## 7. Running a mission — the CLI engine
 
 ### Install
 
 ```bash
-pip install -e ".[all]"     # all nine department kits (product · marketing · solve · finance · comms · data · ops · people · tech)
-export OPENAI_API_KEY=sk-...
+pip install -e .            # the agency CLI (no runtime deps)
+claude                     # authenticate one engine CLI (or: codex / gemini)
 ```
 
 ### Run
 
 ```bash
-# Headless (router auto-decides, no interruption)
+# Headless via the default engine (claude-code)
 agency run "Launch our new B2B analytics product"
 
-# With interactive direction check (confirm route before execution)
-agency run --steer "Launch our new B2B analytics product"
+# Pick a different engine
+agency run --engine gemini "Launch our new B2B analytics product"
 ```
 
 ### Python API
 
 ```python
-from agency_kit.mission import run_mission
+from agency_cli.engines.cli_engine import run_mission_cli
 
-dossier = run_mission("Launch our new B2B analytics product")
+dossier = run_mission_cli("Launch our new B2B analytics product", engine="claude-code")
 print(dossier["route"])      # e.g. ["product", "marketing"]
 print(dossier["delivered"])  # synthesised cross-department deliverable
-```
 
-With the optional direction check:
-
-```python
-from agency_kit.mission import run_mission, console_direction_check
-
-dossier = run_mission(
-    "Launch our new B2B analytics product",
-    dc_fn=console_direction_check,   # pause after CLASSIFY, before EXECUTE
-)
+# Or drive the full headless path (saves to ~/.agency + writes missions/<id>/):
+from agency_cli import runner_bridge
+out = runner_bridge.run("Launch our new B2B analytics product", engine="gemini")
 ```
 
 ### Other CLI commands
@@ -307,7 +296,7 @@ dossier = run_mission(
 ```bash
 agency check                          # prerequisites / health check
 agency sync                           # regenerate agency_cli/payload/ (all sibling repos must be cloned)
-agency sync --allow-missing           # sync with only available sibling repos (partial; keeps committed files)
+agency sync                           # preserve mode (default): regenerate agency-level, keep kit snapshot
 agency init <project> --agent claude  # scaffold into a project
 ```
 
@@ -358,26 +347,21 @@ agency init <project> --agent claude  # scaffold into a project
 
 ---
 
-## 11. Adding a department kit (repeatable pattern)
+## 11. Adding a department (repeatable pattern)
 
-1. Build the department kit (any of the nine: `product-kit`, `marketing-kit`, `solve-kit`, `finance-kit`, `comms-kit`, `data-kit`, `ops-kit`, `people-kit`, `tech-kit`).
-2. Expose a `commander_<dept>` importable from the kit.
-3. In `agency_kit/commander.py`, add the guard:
-   ```python
-   try:
-       from <dept>_kit.commander import commander_<dept>
-       _HAS_<DEPT> = True
-   except ImportError:
-       commander_<dept> = None
-       _HAS_<DEPT> = False
-   ```
-4. Add `commander_<dept>.as_tool()` to the commander's tools list (conditional on
-   `_HAS_<DEPT>`).
-5. In `agency_kit/router.py`, add `<dept>` to the known departments set.
-6. Create `.agency/commands/<dept>.md` (slash command `/agency.<dept>`).
-7. Add the extra in `pyproject.toml`: `<dept> = ["<dept>-kit"]`.
-8. Run `agency sync` to regenerate the bundled payload.
-9. Run `pytest` — all tests must pass.
+There are **no installable kits** — every department is played by the engine model,
+guided by its doctrine file. Adding one is a roster + doctrine change, no Python wiring:
+
+1. In `agency_kit/departments.py`, add one row to `_ROSTER` (and to `DEPT_NAMES`)
+   **and** one entry to `DEPT_DEPENDENCIES` (its upstream edges). This single file is
+   the source of truth the router and the engine both import.
+2. Write the doctrine file `agents/_shared-<dept>.md` — `cli_engine._dept_prompt`
+   loads it for that department at execution time.
+3. Create `.agency/commands/<dept>.md` (slash command `/agency.<dept>`).
+4. Optionally extend `agency_kit/router.py` `keyword_classify()` with keywords that
+   route to the new department (the engine's `_route_via_cli` handles the rest).
+5. Run `agency sync` to regenerate the bundled payload (`agency_cli/payload/`).
+6. Run `pytest` — all tests must pass.
 
 **Quality check after each addition:**
 

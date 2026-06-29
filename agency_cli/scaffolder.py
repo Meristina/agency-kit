@@ -21,18 +21,6 @@ def _spec_present(name: str) -> bool:
     except ValueError:
         return name in sys.modules
 
-# The downstream kits the agency orchestrates; at least one must be installed.
-KITS = (
-    "product_kit", "marketing_kit", "solve_kit", "finance_kit",
-    "comms_kit", "data_kit", "ops_kit", "people_kit", "tech_kit",
-)
-KIT_LABELS = {
-    "product_kit": "product-kit", "marketing_kit": "marketing-kit",
-    "solve_kit": "solve-kit", "finance_kit": "finance-kit",
-    "comms_kit": "comms-kit", "data_kit": "data-kit",
-    "ops_kit": "ops-kit", "people_kit": "people-kit", "tech_kit": "tech-kit",
-}
-
 
 def sources() -> dict:
     """Locate the payload source. Keys: agency, commands, agents, skills, mode.
@@ -88,13 +76,11 @@ def init(target: str, agent: str = "claude") -> dict:
     return summary
 
 
-def _installed_kits():
-    """Return (installed, missing) lists of human-readable kit labels."""
-    installed, missing = [], []
-    for mod in KITS:
-        label = KIT_LABELS[mod]
-        (installed if _spec_present(mod) else missing).append(label)
-    return installed, missing
+def _engine_binaries() -> dict:
+    """Map each engine to its CLI binary, derived from cli_engine.ENGINES (the
+    single source of truth) so the names never drift."""
+    from .engines.cli_engine import ENGINES
+    return {engine: cmd[0] for engine, cmd in ENGINES.items()}
 
 
 def check(target: str = ".") -> list:
@@ -110,23 +96,20 @@ def check(target: str = ".") -> list:
             pass
     checks.append(("constitution present", constitution.is_file(), str(constitution)))
 
-    # agency_commander importable
+    # agency_kit core importable (router + departments)
     checks.append((
-        "agency_commander importable",
-        _spec_present("agency_kit.commander"),
+        "agency_kit importable",
+        _spec_present("agency_kit"),
         "pip install -e . (editable) or pip install agency-kit",
     ))
 
-    # at least one downstream kit installed
-    installed, missing = _installed_kits()
-    detail = f"installed: {', '.join(installed) or 'none'}; missing: {', '.join(missing) or 'none'}"
-    checks.append(("at least one kit installed (product|marketing|solve|finance|comms|data|ops|people|tech)",
-                   bool(installed), detail))
-
-    # Agents SDK installed
+    # at least one agent CLI engine available on PATH
+    found = [eng for eng, binary in _engine_binaries().items() if shutil.which(binary)]
+    detail = (f"available: {', '.join(found)}" if found
+              else "none on PATH — install Claude Code, Codex CLI, or Gemini CLI")
     checks.append((
-        "Agents SDK installed (needed for `agency run`)",
-        _spec_present("agents"),
-        "pip install openai-agents",
+        "at least one engine CLI available (claude | codex | gemini)",
+        bool(found),
+        detail,
     ))
     return checks

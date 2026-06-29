@@ -84,9 +84,11 @@ and nothing else. A department does not see another department's internal workin
 - **Claude (slash commands):** the commander keeps the dossier as `$MISSION/dossier.md`
   on disk, passing the relevant slice in each department command's brief and updating
   the file on return.
-- **OpenAI Agents SDK:** the dossier is a `dict` carried by the deterministic runner
-  `agency_kit/mission.py`, which serializes the relevant slice into each agent call and
-  merges the result back.
+- **Headless engine (`agency run`):** the dossier `dict` is built by
+  `agency_cli/engines/cli_engine.run_mission_cli`, which drives the chosen CLI engine
+  (Claude Code / Codex / Gemini) through route → execute → synthesize → inspect,
+  carrying `dept_outputs` forward between phases. No SDK and no API key — each engine
+  CLI uses its own authenticated session.
 
 ## Guardrails
 

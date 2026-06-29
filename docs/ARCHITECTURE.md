@@ -3,47 +3,40 @@
 ## Overview
 
 agency-kit is a thin routing and orchestration layer. It does not reimplement
-department logic — it imports up to nine department commanders as tools and
-sequences them (product, marketing, solve, finance, comms, data, ops, people,
-tech). The departments are optional extras; agency-kit is useful even with only
-one kit installed (it degrades gracefully).
+department logic — it routes a goal across nine departments (solve, product,
+marketing, finance, comms, data, ops, people, tech) and has a local agent CLI
+engine (Claude Code / Codex / Gemini) play each one in turn, guided by the
+per-department doctrine files in `agents/`. The router deploys the minimum set
+the goal needs — most missions are single-department.
 
-## Chain of command
+## Execution model
+
+Missions run through a local agent CLI **engine** (Claude Code / Codex / Gemini)
+selected with `--engine`. There is no SDK and no API key: the engine model plays
+every role — router, each department, and the inspector — guided by the doctrine
+files in `agents/`. Each CLI brings its own auth and its own live web search.
 
 ```
-agency_commander (ELITE)
-  ├─ classify          → router_agency       (STANDARD) — which depts, in what order
-  ├─ product           → commander_product   (ELITE)    — product-kit  [optional]
-  ├─ marketing         → commander_marketing (ELITE)    — marketing-kit [optional]
-  ├─ solve             → commander_solve     (ELITE)    — solve-kit    [optional]
-  ├─ finance           → commander_finance   (ELITE)    — finance-kit  [optional]
-  ├─ comms             → commander_comms     (ELITE)    — comms-kit    [optional]
-  ├─ data              → commander_data      (ELITE)    — data-kit     [optional]
-  ├─ ops               → commander_ops       (ELITE)    — ops-kit      [optional]
-  ├─ people            → commander_people    (ELITE)    — people-kit   [optional]
-  ├─ tech              → commander_tech      (ELITE)    — tech-kit     [optional]
-  ├─ inspect           → agency_inspector    (ELITE)    — cross-dept consistency gate
-  └─ web search tools  → AK_SEARCH backend
+agency run "<goal>" --engine claude-code|codex|gemini
+  └─ agency_cli/engines/cli_engine.run_mission_cli(goal, engine)
+       ROUTE → EXECUTE (per dept) → SYNTHESIZE → INSPECT   (all via subprocess _call)
 ```
 
 ## Mission loop
 
 ```
-run_mission(goal)
-  │
-  ├── CLASSIFY: classify(goal) → dept list        # classify() from agency_kit.router
-  │   └── [optional DC: confirm route or steer]
-  │
-  ├── ITERATE (max 3):
-  │   ├── EXECUTE: Runner.run_sync(agency_commander, agency_brief(dossier, fixes))
-  │   │     └─ commander internally: classify → execute depts → synthesise
-  │   └── INSPECT: Runner.run_sync(agency_inspector, deliverable)
-  │         ├── PASS       → return dossier
-  │         ├── PASS_WITH_FIXES → extract fixes, loop
-  │         └── VETO       → extract fixes, loop
-  │
-  └── [cap] deliver with residual_risk if MAX_ITERS reached
+run_mission_cli(goal, engine)
+  ROUTE       _route_via_cli(engine, goal) -> dept list (JSON array)
+              fallback: router.keyword_classify(goal) on unparseable output
+  EXECUTE     for each routed dept (in order):
+              _call(engine, goal + prior outputs + agents/_shared-<dept>.md)
+  SYNTHESIZE  _call(engine, commander-agency.md + all dept outputs)
+  INSPECT     _call(engine, inspector-agency.md + deliverable) -> verdict
+  -> dossier {goal, route, dept_outputs, delivered, verdicts}
 ```
+
+runner_bridge.run then assigns a mission_id, saves to the ~/.agency store, and
+writes missions/<id>/{dossier,deliverable}.md. Single-shot — no quota checkpoint.
 
 ## Routing table
 
@@ -68,11 +61,15 @@ run_mission(goal)
 | "end-to-end" / "full agency" | minimum set the goal needs (never all nine reflexively) | router decides |
 
 Default ordering when multiple departments are co-deployed:
-product → marketing → solve → finance → comms → data → ops → people → tech.
+solve → product → marketing → finance → comms → data → ops → people → tech.
+When solve is routed it runs first: its problem definition and root cause are the
+foundational context every other department builds against. Solve is problem-led,
+not default-on — it is routed only to diagnose a real problem (root cause, blocker,
+failing process, hard decision), never for a create/brand/research mission (Art. VI).
 Each department evaluates upstream outputs; it does not re-derive upstream strategy.
 
 The router outputs JSON `{"departments": [...], "rationale": "..."}`.
-Keyword fallback in `classify()` handles parse errors gracefully.
+Keyword fallback in `keyword_classify()` handles parse errors gracefully.
 
 ## Cross-department dossier
 
@@ -117,13 +114,13 @@ own inspector handles that).
 | Command | Description |
 |---|---|
 | `agency init [path] [--agent claude\|codex\|cursor\|copilot\|gemini\|opencode]` | Scaffold `.agency/` + harness slash commands |
-| `agency run "goal" [--steer] [--parallel] [--dry-run]` | Headless mission — routes, executes, inspects |
+| `agency run "goal" [--engine claude-code\|codex\|gemini] [--dry-run]` | Headless mission via the engine — routes, executes, inspects |
 | `agency missions` | List all saved missions from `~/.agency/missions/` |
-| `agency resume <mission_id>` | Resume a paused/VETO'd mission from its checkpoint |
-| `agency check [path]` | Health check — constitution, SDK, at least one kit |
-| `agency sync [--allow-missing]` | Regenerate bundled payload from all repo sources |
+| `agency resume <mission_id> [--engine ...]` | Re-run a saved mission's goal through the engine |
+| `agency check [path]` | Health check — constitution present + at least one engine CLI on PATH |
+| `agency sync [--strict]` | Regenerate payload (default preserve mode; `--strict` requires all kit repos) |
 | `agency batch add "goal"` | Add a goal to the sequential batch queue |
-| `agency batch run [--resume-paused] [--retry-failed] [--limit N]` | Execute pending queue goals |
+| `agency batch run [--retry-failed] [--limit N] [--engine ...]` | Execute pending queue goals |
 | `agency batch status` | Show queue + run state |
 | `agency batch clear [--status done]` | Remove entries from the queue by status |
 | `agency export <mission_id>` | Export deliverable to PDF (optional: `pip install -e ".[pdf]"`) |
@@ -146,37 +143,22 @@ own inspector handles that).
 | `/agency.people` | Deploy the people department directly |
 | `/agency.tech` | Deploy the tech department directly |
 
-## Optional department wiring
+## Engine wiring
 
-`commander.py` uses try/except ImportError for each department kit. Kits that export
-`commander` (not `commander_<dept>`) are handled with an import alias:
+`agency_cli/engines/cli_engine.py` maps each engine to its headless CLI invocation:
 
 ```python
-try:
-    from product_kit.commander import commander_product
-    _HAS_PRODUCT = True
-except ImportError:
-    commander_product = None
-    _HAS_PRODUCT = False
-
-# Kits that export `commander` get an alias (e.g. solve-kit, marketing-kit)
-try:
-    try:
-        from solve_kit.commander import commander_solve
-    except ImportError:
-        from solve_kit.commander import commander as commander_solve
-    _HAS_SOLVE = True
-except ImportError:
-    commander_solve = None
-    _HAS_SOLVE = False
+ENGINES = {
+    "claude-code": ["claude", "--allowedTools", "WebSearch", "-p"],
+    "codex":       ["codex", "--search", "exec", "--color", "never", "--sandbox", "read-only", "--"],
+    "gemini":      ["gemini", "-p"],
+}
 ```
 
-The commander tool list is built conditionally — missing kits are silently absent.
-The commander notes the gap in its output rather than fabricating dept output.
-
-## Parse verdict — smart strategy
-
-1. Look for explicit verdict lines (`OVERALL: X`, `VERDICT: X`, `FINAL VERDICT: X`) first.
-2. Fall back to the LAST occurrence of VETO / PASS WITH FIXES / PASS in the text.
-
-This prevents misfires on "resolving the previous VETO..." references in later iterations.
+`_call(cmd, prompt)` shells out via `subprocess.run`; per-department doctrine is loaded
+from `agents/_shared-<dept>.md`. Adding an engine is one row in `ENGINES` + `_ROUTE_CMD`,
+but only if it can do live web search headlessly — without it a mission would fabricate
+data (Art. I). The inspector's output is stored as `verdicts: [{engine, verdict, detail}]`
+— `verdict` is a short token (PASS / PASS-WITH-FIXES / VETO, via `_short_verdict`) for
+listing, `detail` keeps the full inspector text. The engine is single-shot: there is no
+programmatic loop-back on a VETO.

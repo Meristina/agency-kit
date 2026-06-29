@@ -14,7 +14,7 @@ Art. VI routing doctrine, Art. VIII optional direction check).
 1. **Read in**: `$MISSION/dossier.md` (the goal + any prior facts or assumptions).
 
 2. **Restate** the goal in one sentence and detect the context:
-   sector, domain (product / marketing / solve or cross-domain), stage (early idea,
+   sector, domain (solve / product / marketing or cross-domain), stage (early idea,
    launched, scaling, …), and any visible constraints.
 
 3. **Ask 2–3 questions that change the plan** — each with a recommended default:

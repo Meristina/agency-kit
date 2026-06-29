@@ -4,35 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agency-kit"
-version = "0.1.0"
+version = "0.2.0"
 description = "agency-kit — meta-orchestrator for the AI Agency (product + marketing + solve + finance + comms + data + ops + people + tech)"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = ["openai-agents>=0.8.4"]
+# No runtime dependencies: missions run through a local agent CLI engine
+# (Claude Code / Codex / Gemini) via subprocess. The engine binary is installed
+# separately and uses its own authenticated session + web search.
+dependencies = []
 
 [project.optional-dependencies]
-product = ["product-kit"]
-marketing = ["marketing-kit"]
-solve = ["solve-kit"]
-finance = ["finance-kit"]
-comms = ["comms-kit"]
-data = ["data-kit"]
-ops = ["ops-kit"]
-people = ["people-kit"]
-tech = ["tech-kit"]
-all = ["product-kit", "marketing-kit", "solve-kit", "finance-kit", "comms-kit", "data-kit", "ops-kit", "people-kit", "tech-kit"]
 dev = ["pytest"]
-gemini = ["google-genai"]
-tavily = ["tavily-python>=0.7.0"]
-ddg = ["ddgs"]
-litellm = ["openai-agents[litellm]"]
 pdf = ["weasyprint", "Markdown"]
 tui = ["textual>=0.47.0"]
 
 [project.scripts]
 agency = "agency_cli.cli:main"
-agency-kit-mission = "agency_kit.mission:main"
 
 [tool.setuptools]
 include-package-data = true

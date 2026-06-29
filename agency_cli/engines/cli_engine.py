@@ -1,31 +1,40 @@
-"""cli_engine — run missions via Claude Code CLI or Codex CLI.
+"""cli_engine — run missions via a local agent CLI (Claude Code / Codex / Gemini).
 
-Uses subprocess instead of the OpenAI Agents SDK.
-No API key needed: the CLI tool uses its own authenticated session.
+Uses subprocess instead of any LLM SDK or API key: each CLI tool uses its own
+authenticated session and its own live web search.
 
-Supported engines:
-  claude-code   claude --allowedTools WebSearch -p "<prompt>"   (live web search)
-  codex         codex --search exec "<prompt>"                  (live web search)
+Supported engines (all provide live web search, which Art. I of the constitution
+requires — facts must come from real searched sources, never invented):
+  claude-code   claude --allowedTools WebSearch -p "<prompt>"
+  codex         codex --search exec --color never --sandbox read-only -- "<prompt>"
+  gemini        gemini -p "<prompt>"        (google_web_search built-in, on by default)
+
+Extension point: other agent CLIs (cursor-agent, opencode, copilot) can be added
+to ENGINES below, but only once they can guarantee live web search headlessly —
+without it a mission would fabricate data and violate Art. I.
 """
 
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
-# Execution commands — WebSearch enabled for live research
+from agency_kit.departments import DEPT_NAMES, VALID_DEPTS
+
+# Execution commands — live web search enabled for real research
 ENGINES: dict = {
     "claude-code": ["claude", "--allowedTools", "WebSearch", "-p"],
     "codex": ["codex", "--search", "exec", "--color", "never", "--sandbox", "read-only", "--"],
+    "gemini": ["gemini", "-p"],
 }
 
-# Routing commands — no web search needed, just classification
+# Routing commands — classification only, no web search needed
 _ROUTE_CMD: dict = {
     "claude-code": ["claude", "-p"],
     "codex": ["codex", "--color", "never", "--sandbox", "read-only", "--"],
+    "gemini": ["gemini", "-p"],
 }
-
-_VALID_DEPTS = ("product", "marketing", "solve", "finance", "comms", "data", "ops", "people", "tech")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -41,59 +50,73 @@ def _agents_dir() -> Path:
     raise RuntimeError("agents/ directory not found — run `agency sync` first.")
 
 
-def _strip_frontmatter(text: str) -> str:
-    """Remove YAML frontmatter (--- ... ---) so it isn't parsed as CLI flags."""
-    if not text.startswith("---"):
-        return text
-    end = text.find("\n---", 3)
-    return text[end + 4:].lstrip() if end != -1 else text
-
-
 def _load(name: str) -> str:
+    """Load an agents/*.md doctrine file, stripping its YAML frontmatter so it
+    isn't parsed as CLI flags."""
+    from agency_kit.store import split_frontmatter
     try:
         raw = (_agents_dir() / f"{name}.md").read_text(encoding="utf-8")
-        return _strip_frontmatter(raw)
+        fm, body = split_frontmatter(raw)
+        return body.lstrip() if fm else raw
     except FileNotFoundError:
         return ""
 
 
 def _call(cmd_prefix: list, prompt: str, timeout: int = 900) -> str:
     """Invoke the CLI with a prompt; return stdout. Raises RuntimeError on failure."""
-    proc = subprocess.run(
-        cmd_prefix + [prompt],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    if proc.returncode != 0:
-        stderr = proc.stderr.strip()
-        raise RuntimeError(
-            f"CLI engine exited {proc.returncode}"
-            + (f": {stderr}" if stderr else "")
+    binary = cmd_prefix[0]
+    try:
+        proc = subprocess.run(
+            cmd_prefix + [prompt],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
         )
-    return proc.stdout.strip()
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"engine CLI '{binary}' not found on PATH — install it and authenticate "
+            f"(e.g. Claude Code / Codex CLI / Gemini CLI)."
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"engine CLI '{binary}' timed out after {timeout}s.")
+    if proc.returncode != 0:
+        # Claude Code / Codex often write the real error to stdout in -p/exec mode,
+        # so surface whichever stream has content (stderr first) instead of a bare code.
+        detail = (proc.stderr.strip() or proc.stdout.strip())[:800]
+        raise RuntimeError(
+            f"CLI engine '{binary}' exited {proc.returncode}"
+            + (f": {detail}" if detail else " (no output on stdout or stderr)")
+        )
+    out = proc.stdout.strip()
+    if not out:
+        raise RuntimeError(f"engine CLI '{binary}' returned empty output.")
+    return out
 
 
 def _route_via_cli(engine: str, goal: str) -> list:
-    """AI-powered routing via CLI — asks the model which departments to invoke.
+    """Route via the CLI, driven by the canonical router doctrine (router-agency.md).
 
-    Falls back to keyword_classify() if the model returns unparseable output.
+    Loads the same routing doctrine the whole agency uses — solve-first canonical
+    order, the problem-led guardrail, Art. VI, and the routing examples — then forces
+    a JSON-array answer for easy parsing. Falls back to keyword_classify() if the
+    model returns unparseable output, or to a minimal prompt if the doctrine file is
+    absent.
     """
     route_cmd = _ROUTE_CMD.get(engine, _ROUTE_CMD["claude-code"])
+    doctrine = _load("router-agency")
+    header = doctrine if doctrine else (
+        "You are an agency mission router. Deploy the MINIMUM set of departments the "
+        "goal needs (Art. VI). Canonical order is solve-first; solve is problem-led — "
+        "route it only to diagnose a real problem, never for a create/brand/research mission.\n"
+        f"Available departments: {', '.join(DEPT_NAMES)}"
+    )
     prompt = (
-        "You are an agency mission router. Given the mission goal below, decide which "
-        "departments are needed and in what order.\n\n"
-        f"Available departments: {', '.join(_VALID_DEPTS)}\n\n"
-        "Rules:\n"
-        "- Only include departments genuinely needed for this goal\n"
-        "- Typical order: product → marketing → solve → finance → data → ops → people → tech → comms\n"
-        "- For a market study: product + marketing + solve + finance\n"
-        "- For a tech product: product + tech + marketing\n"
-        "- For a business plan: product + marketing + finance + ops\n"
-        "- Art. VI: do NOT over-route; deploy the minimum set the goal requires\n\n"
-        "Return ONLY a valid JSON array of department names, nothing else.\n"
-        "Example: [\"product\", \"marketing\", \"finance\"]\n\n"
-        f"Mission goal: {goal}"
+        header
+        + "\n\n---\n\n"
+        + f"MISSION GOAL:\n{goal}\n\n"
+        + "Apply the routing doctrine above. Output ONLY a JSON array of the department "
+        + 'names to deploy, in execution order (solve-first). No prose, no rationale, no '
+        + 'markdown fences. Example: ["solve", "product", "marketing"].'
     )
 
     try:
@@ -101,18 +124,46 @@ def _route_via_cli(engine: str, goal: str) -> list:
         match = re.search(r'\[.*?\]', response, re.DOTALL)
         if match:
             depts = json.loads(match.group())
-            valid = [d for d in depts if d in _VALID_DEPTS]
+            valid = [d for d in depts if d in VALID_DEPTS]
             if valid:
                 return valid
-    except Exception:
+    except (RuntimeError, ValueError):
+        # CLI call failed or returned unparseable JSON — fall back to keywords.
         pass
 
-    # Fallback: keyword heuristic (no API call)
+    # Fallback: keyword heuristic (no model call)
     from agency_kit.router import keyword_classify
     return keyword_classify(goal)
 
 
 _MAX_DEPT_CHARS = 4000  # per department, to keep prompts manageable
+
+
+def _short_verdict(text: str) -> str:
+    """Pull a short verdict token (PASS / PASS-WITH-FIXES / VETO) from inspector text.
+
+    Used so `agency missions` / `batch status` show a clean token instead of the
+    inspector's full prose. Whole-token, severity-ordered: VETO > PASS-WITH-FIXES >
+    PASS. Matching by severity (not by last position) avoids the substring flip-case
+    where a bare "PASS" in prose AFTER a "PASS-WITH-FIXES" conclusion would otherwise
+    downgrade the reported verdict. Word boundaries stop "PASS" inside "BYPASS" /
+    "COMPASS" or the "PASS" inside "PASS-WITH-FIXES" from being read as a bare PASS.
+
+    Cases the heuristic must cover:
+      "VERDICT: PASS"                              -> PASS
+      "... — VETO"                                 -> VETO
+      "VERDICT: PASS-WITH-FIXES, see notes"        -> PASS-WITH-FIXES
+      "PASS-WITH-FIXES. It would PASS once fixed." -> PASS-WITH-FIXES (no downgrade)
+      "no verdict word here"                       -> DELIVERED
+    """
+    upper = (text or "").upper()
+    if re.search(r"\bVETO\b", upper):
+        return "VETO"
+    if re.search(r"\bPASS[\s-]WITH[\s-]FIXES\b", upper):
+        return "PASS-WITH-FIXES"
+    if re.search(r"\bPASS\b", upper):
+        return "PASS"
+    return "DELIVERED"
 
 
 def _fmt_dept_outputs(dept_outputs: dict) -> str:
@@ -126,59 +177,42 @@ def _fmt_dept_outputs(dept_outputs: dict) -> str:
     return "\n\n".join(parts)
 
 
-# ── main entry point ──────────────────────────────────────────────────────────
+# ── prompt builders (one per mission phase) ─────────────────────────────────────
 
-def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
-    """Run a full mission via a local CLI tool.
+def _dept_prompt(dept: str, goal: str, dept_outputs: dict) -> str:
+    shared = _load(f"_shared-{dept}")
+    return (
+        f"You are the {dept} department commander for an AI agency.\n\n"
+        f"MISSION GOAL:\n{goal}\n\n"
+        f"PRIOR DEPARTMENT OUTPUTS:\n{_fmt_dept_outputs(dept_outputs)}\n\n"
+        + (f"DEPARTMENT DOCTRINE:\n{shared}\n\n" if shared else "")
+        + "Produce a complete, detailed deliverable for this department.\n"
+        "CRITICAL: Use WebSearch to find current, real data (today's date, live sources). "
+        "Never invent statistics, market sizes, or citations. "
+        "Every factual claim must come from a real source you have searched and verified."
+    )
 
-    Returns the same dossier dict shape as agency_kit.mission.run_mission().
-    Web search is live — the CLI tool fetches real pages at execution time.
-    """
-    cmd = ENGINES.get(engine)
-    if cmd is None:
-        raise ValueError(f"Unknown engine '{engine}'. Available: {', '.join(ENGINES)}")
 
-    # 1. Route — via the CLI model (AI, not keyword heuristic)
-    print(f"[{engine}] routing...", end=" ", flush=True)
-    route = _route_via_cli(engine, goal)
-    print(f"{' → '.join(route)}", flush=True)
-
-    # 2. Run each department sequentially (with live web search)
-    dept_outputs: dict = {}
-    for dept in route:
-        print(f"[{engine}] {dept}...", end=" ", flush=True)
-        shared = _load(f"_shared-{dept}")
-        prompt = (
-            f"You are the {dept} department commander for an AI agency.\n\n"
-            f"MISSION GOAL:\n{goal}\n\n"
-            f"PRIOR DEPARTMENT OUTPUTS:\n{_fmt_dept_outputs(dept_outputs)}\n\n"
-            + (f"DEPARTMENT DOCTRINE:\n{shared}\n\n" if shared else "")
-            + "Produce a complete, detailed deliverable for this department.\n"
-            "CRITICAL: Use WebSearch to find current, real data (today's date, live sources). "
-            "Never invent statistics, market sizes, or citations. "
-            "Every factual claim must come from a real source you have searched and verified."
-        )
-        dept_outputs[dept] = _call(cmd, prompt)
-        print("done", flush=True)
-
-    # 3. Synthesise (with live web search)
-    print(f"[{engine}] synthesising...", end=" ", flush=True)
+def _synth_prompt(goal: str, route: list, dept_outputs: dict, fixes: str = None) -> str:
     commander_doc = _load("commander-agency")
-    synth_prompt = (
+    fixes_block = (
+        "PREVIOUS INSPECTOR FINDINGS — the prior synthesis did NOT pass; resolve every "
+        f"item before re-presenting:\n{fixes}\n\n" if fixes else ""
+    )
+    return (
         (f"{commander_doc}\n\n" if commander_doc else "")
         + f"MISSION GOAL:\n{goal}\n\n"
         f"ROUTE: {route}\n\n"
         f"DEPARTMENT OUTPUTS:\n{_fmt_dept_outputs(dept_outputs)}\n\n"
-        "Synthesise all department outputs into a final cross-department mission dossier. "
+        + fixes_block
+        + "Synthesise all department outputs into a final cross-department mission dossier. "
         "List decisions taken, open items to verify, and all sources cited with URLs and dates."
     )
-    delivered = _call(cmd, synth_prompt)
-    print("done", flush=True)
 
-    # 4. Inspect (verify sources are real and live)
-    print(f"[{engine}] inspecting...", end=" ", flush=True)
+
+def _inspect_prompt(goal: str, delivered: str) -> str:
     inspector_doc = _load("inspector-agency")
-    inspect_prompt = (
+    return (
         (f"{inspector_doc}\n\n" if inspector_doc else "")
         + f"MISSION GOAL:\n{goal}\n\n"
         f"DELIVERABLE:\n{delivered}\n\n"
@@ -186,10 +220,66 @@ def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
         "Issue a verdict: PASS, PASS-WITH-FIXES, or VETO. "
         "Flag any invented data, outdated figures, or unverifiable claims."
     )
-    verdict_text = _call(cmd, inspect_prompt)
-    print("done", flush=True)
 
-    return {
+
+# ── main entry point ──────────────────────────────────────────────────────────
+
+MAX_ITERS = 3                      # synthesise→inspect cap (Art. IX: VETO loops, never skips)
+_RETRY_VERDICTS = ("VETO", "PASS-WITH-FIXES")
+
+
+def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
+    """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
+
+    The inspector is a real gate (Art. IX): on VETO or PASS-WITH-FIXES the synthesis is
+    re-run with the inspector's findings injected as required fixes, up to MAX_ITERS. If
+    it still hasn't PASSed at the cap, the best result is delivered with a residual_risk
+    note. Departments run once — only the cross-department synthesis is re-tried.
+
+    Returns a dossier dict (goal, route, dept_outputs, delivered, verdicts, iteration).
+    Web search is live — the CLI tool fetches real pages at execution time.
+    """
+    cmd = ENGINES.get(engine)
+    if cmd is None:
+        raise ValueError(f"Unknown engine '{engine}'. Available: {', '.join(ENGINES)}")
+    if shutil.which(cmd[0]) is None:  # fail fast with a clear message if the CLI is absent
+        raise RuntimeError(
+            f"engine '{engine}' needs the '{cmd[0]}' CLI on PATH — install it and "
+            f"authenticate first. Check availability with: agency check"
+        )
+
+    print(f"[{engine}] routing...", end=" ", flush=True)
+    route = _route_via_cli(engine, goal)
+    print(f"{' → '.join(route)}", flush=True)
+
+    dept_outputs: dict = {}
+    for dept in route:
+        print(f"[{engine}] {dept}...", end=" ", flush=True)
+        dept_outputs[dept] = _call(cmd, _dept_prompt(dept, goal, dept_outputs))
+        print("done", flush=True)
+
+    verdicts: list = []
+    delivered = ""
+    fixes = None
+    iteration = 0
+    while iteration < MAX_ITERS:
+        iteration += 1
+        label = "synthesising" if iteration == 1 else f"re-synthesising (iter {iteration})"
+        print(f"[{engine}] {label}...", end=" ", flush=True)
+        delivered = _call(cmd, _synth_prompt(goal, route, dept_outputs, fixes))
+        print("done", flush=True)
+
+        print(f"[{engine}] inspecting...", end=" ", flush=True)
+        verdict_text = _call(cmd, _inspect_prompt(goal, delivered))
+        token = _short_verdict(verdict_text)
+        print(token, flush=True)
+
+        verdicts.append({"engine": engine, "verdict": token, "detail": verdict_text, "iteration": iteration})
+        if token not in _RETRY_VERDICTS:   # PASS, or no actionable verdict — stop
+            break
+        fixes = verdict_text               # feed the inspector's findings into the next synthesis
+
+    dossier = {
         "goal": goal,
         "route": route,
         "context": None,
@@ -198,7 +288,13 @@ def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
         "sources": [],
         "open_to_verify": [],
         "direction_check": None,
-        "verdicts": [{"engine": engine, "verdict": verdict_text}],
-        "iteration": 1,
+        "verdicts": verdicts,
+        "iteration": iteration,
         "delivered": delivered,
     }
+    if verdicts[-1]["verdict"] in _RETRY_VERDICTS:   # cap reached without a clean PASS
+        dossier["residual_risk"] = (
+            f"Inspector did not PASS after {iteration} iteration(s); delivered the best "
+            f"available result. Last verdict: {verdicts[-1]['verdict']}."
+        )
+    return dossier

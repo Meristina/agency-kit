@@ -99,6 +99,14 @@ violates this article. Multi-department deployment is justified only when the mi
 spans multiple domains, and the classification must state *why* each chosen department is in scope
 and *why* the others are not.
 
+**Solve is problem-led, never default-on.** Although solve-kit leads the canonical order and
+feeds every other department (Art. VII), that is "foundational *when in scope*" — not an
+automatic inclusion. Route solve **only** to diagnose or resolve a problem: a root cause, a
+blocker, a failing process, or a hard decision under uncertainty. A creation, branding, or pure
+research mission (e.g. a market study, a brand brief, a feature build) routes **no** solve at all
+— there is nothing to diagnose; you are creating, not repairing. Foundational-when-present must
+never be read as default-on.
+
 ## Article VII — Cross-Department Pipelines
 
 When a mission spans departments, the Agency runs them as an ordered pipeline and carries a
@@ -107,26 +115,33 @@ and makes it available to the next.
 
 The canonical flow is:
 
-1. **product-kit** output (strategy, design, delivery artefacts) feeds **marketing-kit**.
-2. **product-kit** and **marketing-kit** output both feed **solve-kit** for decision intelligence
-   and problem-solving across the combined picture.
-3. **product-kit**, **marketing-kit**, and **solve-kit** output all feed **finance-kit** for
-   economic viability, pricing, commercial pipeline, and investor reporting.
-4. **comms-kit** runs after product/marketing when messaging and narrative need external
+1. **solve-kit** runs first when routed: it frames the problem, isolates the root cause, and
+   sets the solution direction. This diagnosis is the foundational input that **feeds every
+   other department** — each builds against the problem solve actually defined, never around it.
+   This applies **only when problem-solving is in scope**: solve is not auto-included — per
+   Art. VI it is routed solely for genuine problem/root-cause/decision missions, never for
+   creation, branding, or pure research.
+2. **product-kit** output (strategy, design, delivery artefacts) builds on the diagnosis and
+   feeds **marketing-kit**.
+3. **marketing-kit** takes product as ground truth for positioning, messaging, and campaigns.
+4. **solve-kit, product-kit, and marketing-kit** output all feed **finance-kit** for economic
+   viability, pricing, commercial pipeline, and investor reporting.
+5. **comms-kit** runs after product/marketing when messaging and narrative need external
    expression — PR, crisis, public affairs, ESG, events.
-5. **data-kit** runs when the mission involves building or scaling data infrastructure,
+6. **data-kit** runs when the mission involves building or scaling data infrastructure,
    analytics, ML/AI, or data products.
-6. **ops-kit** runs when the mission involves operational delivery, regulatory fit (NIS2,
+7. **ops-kit** runs when the mission involves operational delivery, regulatory fit (NIS2,
    AI Act, DORA ICT), procurement B2G, or risk mapping.
-7. **people-kit** runs when the mission involves the organisation's human capital — org
+8. **people-kit** runs when the mission involves the organisation's human capital — org
    design, talent, performance, culture, or people analytics.
-8. **tech-kit** runs when the mission involves technology decisions, architecture, DevOps,
+9. **tech-kit** runs when the mission involves technology decisions, architecture, DevOps,
    security, or engineering excellence.
 
-The default ordering is: product → marketing → solve → finance → comms → data → ops →
+The default ordering is: solve → product → marketing → finance → comms → data → ops →
 people → tech. Order may adapt to the mission when domain logic demands it, but the
-principle holds: **upstream output is explicit input downstream.** The dossier is passed
-forward at every hop so no department starts blind.
+principle holds: **upstream output is explicit input downstream** — and when problem-solving
+is in scope, its diagnosis is upstream of everything. The dossier is passed forward at every
+hop so no department starts blind.
 
 ## Article VIII — Optional Direction Check, No Mandatory HITL
 
@@ -144,9 +159,9 @@ starts, departments run under their own doctrines without further mandatory gate
 After **all** deployed departments complete, the **Inspector** runs (elite grade). It performs two
 duties:
 
-1. **Cross-department consistency** — verifies the departments' outputs agree: the marketing
-   positioning matches the product strategy, the solve-kit decisions reflect the actual product and
-   marketing reality, no department contradicts another, and the cross-department dossier is
+1. **Cross-department consistency** — verifies the departments' outputs agree: the product and
+   marketing work addresses the problem solve-kit actually diagnosed, the marketing positioning
+   matches the product strategy, no department contradicts another, and the cross-department dossier is
    coherent end to end.
 2. **Per-department quality gates** — confirms each deployed department satisfied **its own**
    internal quality gates (Art. IV sovereignty means the Agency checks that the gate passed, not

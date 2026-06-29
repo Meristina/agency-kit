@@ -2,10 +2,11 @@
 name: routing
 description: >-
   Classify a mission goal into the minimal ordered set of departments to deploy
-  (product / marketing / solve / finance / comms / data / ops / people / tech). Used by the agency commander in Phase 0 (Frame)
-  via the router_agent, and again whenever the commander must reclassify mid-mission
-  after a REDIRECT or a direction-check correction. Not a problem-solving method —
-  it is the classification logic the whole agency pipeline depends on.
+  (solve / product / marketing / finance / comms / data / ops / people / tech).
+  Used by the agency commander in Phase 0 (Frame) to pick the route, and again
+  whenever the commander must reclassify mid-mission after a REDIRECT or a
+  direction-check correction. Not a problem-solving method — it is the
+  classification logic the whole agency pipeline depends on.
 ---
 
 # Routing — Field Manual
@@ -24,11 +25,11 @@ mid-mission after a REDIRECT.
 | **marketing** | Research, positioning, content, campaigns, SEO, brand, launch comms, analytics | campaign, content, copy, positioning, messaging, SEO, brand, launch, go-to-market, ads |
 | **solve** | Problem-solving, root-cause, decision intelligence, architecture, debugging, implementation | debug, fix, bug, root cause, architect, algorithm, implement, refactor, optimise, decide |
 | **finance** | Business case, financial modelling, pricing, P&L, commercial pipeline, closing, reporting | finance, pricing, budget, ROI, P&L, cash flow, pipeline, deal, commercial, investor, business case |
-| **comms** | Corporate narrative, PR/media, crisis management, public affairs, ESG, events communications | PR, press, media, crisis, narrative, communications, ESG, stakeholders, event, launch comms |
-| **data** | Data strategy, analytics, ML/LLMOps, data pipelines, governance | data, analytics, ML, LLM, pipeline, governance, warehouse, BI, reporting, AI |
-| **ops** | Process design, PMO, compliance (NIS2, AI Act), risk management, operational excellence | process, PMO, compliance, NIS2, AI Act, risk, operations, workflow, audit |
-| **people** | Org design, talent acquisition, L&D, performance & comp, culture, people analytics | HR, hiring, talent, org design, culture, compensation, onboarding, L&D, engagement |
-| **tech** | Architecture, DevOps/IaC, security engineering, engineering excellence, build-vs-buy, DORA | architecture, DevOps, security, infrastructure, CI/CD, DORA, engineering, cloud, IaC |
+| **comms** | Corporate communications, PR/media, crisis management, public affairs B2G, ESG/CSRD, events | PR, press release, crisis, communiqué, media relations, ESG, CSRD, public affairs, event, réputation |
+| **data** | Data strategy, engineering, analytics/BI, ML/LLMOps, data quality, data products | data, pipeline, warehouse, analytics, BI, dashboard, ML, LLM, RAG, dbt, streaming, lakehouse |
+| **ops** | Process optimisation, PMO, procurement B2G, EU compliance (NIS2, AI Act, DORA ICT), risk | ops, process, PMO, procurement, NIS2, AI Act, DORA, compliance, conformité, risque, lean, BCP |
+| **people** | Org design, talent acquisition, L&D, performance, compensation, culture, people analytics | RH, HR, talent, recrutement, recruiting, org design, onboarding, L&D, compensation, culture, DEI |
+| **tech** | Software architecture, DevOps/IaC, security, engineering excellence, build-vs-buy, DORA metrics | architecture, DevOps, infrastructure, cloud, security, Kubernetes, CI/CD, Terraform, SOC2, OWASP |
 
 ## Classification rules
 
@@ -50,19 +51,27 @@ The order is the execution sequence — each department's output feeds the next.
 
 Default pipeline order when multiple departments are needed:
 
-1. **product** first — establishes what is being built, for whom, and why. Its strategy
-   and outcome targets become ground truth for downstream departments.
-2. **marketing** second — takes the product output as the positioning input. It does not
+1. **solve** first (when routed) — frames the problem, isolates the root cause, and sets
+   the solution direction. Its diagnosis is the foundational context every downstream
+   department builds against (or runs standalone if it is the only routed department).
+   **Problem-led, not default-on:** routed only for a genuine problem (root cause, blocker,
+   failing process, hard decision) — never for a create/brand/research mission.
+2. **product** second — builds against solve's diagnosis: establishes what is being built,
+   for whom, and why. Its strategy and outcome targets become ground truth for downstream.
+3. **marketing** third — takes the product output as the positioning input. It does not
    re-derive the product strategy; it builds on it.
-3. **solve** third — applies decision intelligence to the blockers, trade-offs, or open
-   decisions the upstream departments surfaced. Or runs standalone if it is the only
-   routed department.
-4. **finance** — evaluates economic viability, pricing, and commercial strategy. Takes upstream outputs; does not re-derive upstream strategy — it evaluates it financially.
-5. **comms** — corporate narrative, PR, crisis, ESG, event strategy. Runs after product/marketing to wrap the right message around the right offer.
-6. **data** — data strategy, pipelines, analytics, ML/LLMOps. Runs after product/solve when data infrastructure or intelligence is a primary deliverable.
-7. **ops** — process design, PMO, compliance. Runs after solve to operationalise the chosen solution.
-8. **people** — org design, talent, comp, culture. Runs after product/solve when workforce or org change is a primary deliverable.
-9. **tech** — architecture, DevOps, security, build-vs-buy. Runs after product/solve for any technical implementation decisions.
+4. **finance** — evaluates economic viability, pricing, and commercial strategy. Takes
+   solve, product, and marketing outputs as inputs; does not re-derive upstream strategy.
+5. **comms** — corporate communications, PR/media, crisis, ESG. Runs after
+   product/marketing when messaging and narrative are needed externally.
+6. **data** — data strategy, pipelines, analytics/BI, ML/LLMOps. Runs when the mission
+   involves building or scaling data infrastructure or intelligence.
+7. **ops** — process optimisation, PMO, EU compliance (NIS2, AI Act), risk. Runs when
+   the mission involves operational delivery, regulatory fit, or scaling ops.
+8. **people** — org design, talent, L&D, performance, culture. Runs when the mission
+   involves the organisation's human capital.
+9. **tech** last (or standalone) — architecture, DevOps, security, engineering excellence.
+   Runs when the mission involves technology decisions or delivery.
 
 Common multi-domain patterns:
 - "Launch a new product" → `["product", "marketing"]`
@@ -70,7 +79,16 @@ Common multi-domain patterns:
 - "Debug a problem and explain it to stakeholders" → `["solve", "marketing"]`
 - "Launch with a financial model" → `["product", "marketing", "finance"]`
 - "Pitch investors" → `["product", "finance"]`
-- "Full agency / end-to-end engagement" → all nine (rarely justified — apply Rule 1 first)
+- "End-to-end engagement" / "full agency" → minimum set the goal needs (never all nine reflexively — Art. VI)
+
+**Solve is problem-led, not default-on.** Solve leads the order and feeds every department,
+but only as "foundational *when in scope*." Route it only to diagnose or resolve a problem —
+never for greenfield creation, branding, or pure research, where there is nothing to diagnose:
+- "Market study to launch an app" → `["product"]` (discovery — NOT solve)
+- "Build our brand on a tight budget" → `["marketing"]` (NOT solve; budget is a marketing
+  constraint, not finance)
+- "End-to-end build of a new app" → `["product", "marketing", "finance"]` (NOT solve — creation, not repair)
+- "Our app is losing users — diagnose and relaunch" → `["solve", "product", "marketing"]` (solve leads: a real problem)
 
 ### Rule 3 — Classify by dominant intent
 When a goal mixes signals, pick the **dominant intent** — the discipline that owns the

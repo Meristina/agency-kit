@@ -1,9 +1,15 @@
 """sync_payload — regenerate the bundled payload from all source repos.
 
-Pulls from agency-kit (the meta-orchestrator) AND all nine department kit repos
-(product-kit, marketing-kit, solve-kit, finance-kit, comms-kit, data-kit,
-ops-kit, people-kit, tech-kit) so that `agency init` installs a complete,
-standalone agency without requiring separate per-kit init calls.
+Pulls from agency-kit (the meta-orchestrator) AND, when present, the nine department
+kit repos (product-kit … tech-kit) so the bundled payload is complete.
+
+Engine-only model: agency-kit no longer installs department kits — departments are
+played by the CLI engine. The sibling kit repos are therefore usually ABSENT, and
+their contribution to the payload (the `commander-<dept>.md` / `inspector-<dept>.md`
+doctrine) is a committed FROZEN SNAPSHOT. So `agency sync` defaults to PRESERVE mode:
+it regenerates the agency-level files (`.agency/`, agency `agents/` + `skills/`) and
+keeps the kit-derived snapshot untouched. `agency sync --strict` requires every kit
+repo and does a clean full rebuild (for kit maintainers cloning all siblings).
 
 Source layout (all repos are expected as siblings of agency-kit):
   agency-kit/     → .agency/, agents/, skills/
@@ -113,10 +119,10 @@ def sync(allow_missing: bool = False) -> dict:
     ]
     if missing_kits and not allow_missing:
         raise RuntimeError(
-            f"Missing sibling repos (not cloned?): {', '.join(missing_kits)}\n"
-            "Clone them alongside agency-kit before running `agency sync`.\n"
-            "To run with only the repos present (keeps committed files for missing kits),\n"
-            "pass allow_missing=True (Python) or run `agency sync --allow-missing` (CLI)."
+            f"--strict requires all sibling kit repos, but these are absent: {', '.join(missing_kits)}\n"
+            "In the engine-only model the kits are normally absent — just run `agency sync`\n"
+            "(preserve mode: regenerates agency-level files, keeps the kit-derived snapshot).\n"
+            "Only use --strict if you have cloned all nine kit repos alongside agency-kit."
         )
 
     # 1) .agency/ → payload/agency/  (plans/ is internal dev work — excluded from the bundle)
