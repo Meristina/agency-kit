@@ -25,9 +25,11 @@ class MissionResult(NamedTuple):
 
 
 def _last_verdict(dossier: dict) -> str:
-    """The Inspector's final verdict token, or 'DELIVERED' if none was recorded."""
+    """The Inspector's final verdict token, or 'DELIVERED' if none was recorded.
+    Tolerant of a malformed (non-dict) verdict entry so it can't raise."""
     verdicts = dossier.get("verdicts") or []
-    return verdicts[-1].get("verdict", "DELIVERED") if verdicts else "DELIVERED"
+    last = verdicts[-1] if verdicts else None
+    return last.get("verdict", "DELIVERED") if isinstance(last, dict) else "DELIVERED"
 
 
 def _next_id(missions: Path) -> str:
@@ -110,6 +112,9 @@ def _run_and_persist(
     from .engines.cli_engine import run_mission_cli
     dossier = run_mission_cli(goal, engine=engine, on_event=on_event)
     dossier["mission_id"] = store.new_mission_id(goal)
+    # Stamp the canonical project root so store.list_missions can scope history to
+    # this project (the Studio GUI launched with --path), not the global store.
+    dossier["project_root"] = store.canonical_project_root(project_root)
     store.save(dossier)
     path = serialize_dossier(dossier, Path(project_root))
     return MissionResult(path=path, dossier=dossier)
