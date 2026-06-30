@@ -192,6 +192,31 @@ def test_call_terminates_inflight_subprocess_on_cancel(monkeypatch):
     assert signal.SIGTERM in sent, "an in-flight child group must be signalled on cancel"
 
 
+def test_call_escalates_to_sigkill_when_sigterm_is_ignored(monkeypatch):
+    # The second half of _terminate (cli_engine.py:102-104): a stubborn child that
+    # ignores SIGTERM must be escalated to SIGKILL after the grace window. Here only
+    # SIGKILL releases the blocked reader, so the SIGTERM grace must elapse and the
+    # escalation fire — otherwise the test would hang. Shrink the grace so it's fast.
+    monkeypatch.setattr(cli_engine, "_CANCEL_POLL_SECONDS", 0.01)
+    monkeypatch.setattr(cli_engine, "_TERMINATE_GRACE", 0.05)
+    fake = _FakePopen(out="ignores SIGTERM", block=True)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
+
+    sent = []
+    monkeypatch.setattr(cli_engine.os, "getpgid", lambda pid: pid)
+
+    def _killpg(_pgid, sig):
+        sent.append(sig)
+        if sig == signal.SIGKILL:  # only the kill releases the stubborn child
+            fake.unblock()
+
+    monkeypatch.setattr(cli_engine.os, "killpg", _killpg)
+
+    with pytest.raises(cli_engine.MissionCancelled):
+        cli_engine._call(["claude", "-p"], "hi", should_cancel=lambda: True)
+    assert sent == [signal.SIGTERM, signal.SIGKILL], "SIGTERM first, then SIGKILL escalation, in order"
+
+
 def test_call_raises_runtime_on_timeout(monkeypatch):
     # A withheld child past its deadline is terminated (group kill) and reported as a
     # timeout.
