@@ -4,6 +4,9 @@ The engine shells out to a local agent CLI (claude/codex/gemini). Tests stub the
 `_call` subprocess wrapper so they run offline with no CLI installed.
 """
 
+import signal
+import threading
+
 import pytest
 
 from agency_cli.engines import cli_engine
@@ -15,13 +18,13 @@ def test_engines_registry_has_three_web_search_engines():
 
 
 def test_route_via_cli_parses_json_array(monkeypatch):
-    monkeypatch.setattr(cli_engine, "_call", lambda cmd, prompt, timeout=900: '["solve", "product"]')
+    monkeypatch.setattr(cli_engine, "_call", lambda cmd, prompt, timeout=900, should_cancel=None: '["solve", "product"]')
     assert cli_engine._route_via_cli("claude-code", "fix our broken funnel") == ["solve", "product"]
 
 
 def test_route_via_cli_falls_back_to_keyword(monkeypatch):
     # Unparseable CLI output → keyword_classify fallback.
-    monkeypatch.setattr(cli_engine, "_call", lambda cmd, prompt, timeout=900: "not json at all")
+    monkeypatch.setattr(cli_engine, "_call", lambda cmd, prompt, timeout=900, should_cancel=None: "not json at all")
     route = cli_engine._route_via_cli("claude-code", "write a marketing campaign")
     assert route == ["marketing"]
 
@@ -29,7 +32,7 @@ def test_route_via_cli_falls_back_to_keyword(monkeypatch):
 def test_route_prompt_loads_doctrine_and_forces_json_array(monkeypatch):
     seen = {}
 
-    def _capture(cmd, prompt, timeout=900):
+    def _capture(cmd, prompt, timeout=900, should_cancel=None):
         seen["prompt"] = prompt
         return '["product"]'
 
@@ -50,7 +53,7 @@ def test_run_mission_cli_returns_dossier_shape(monkeypatch):
     monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
     calls = {"n": 0}
 
-    def _fake_call(cmd, prompt, timeout=900):
+    def _fake_call(cmd, prompt, timeout=900, should_cancel=None):
         calls["n"] += 1
         if calls["n"] == 1:               # routing call → parsed by _route_via_cli
             return '["solve", "product"]'
@@ -76,7 +79,7 @@ def _scripted_engine(monkeypatch, inspector_verdicts):
     monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
     seq = iter(inspector_verdicts)
 
-    def _call(cmd, prompt, timeout=900):
+    def _call(cmd, prompt, timeout=900, should_cancel=None):
         low = prompt.lower()
         if "json array" in low:
             return '["product"]'
@@ -118,15 +121,104 @@ def test_run_mission_cli_rejects_unknown_engine():
         cli_engine.run_mission_cli("goal", engine="nonsense")
 
 
+class _FakePopen:
+    """Stand-in for ``subprocess.Popen`` driving ``_call`` offline.
+
+    ``communicate`` returns ``(out, err)`` once the process is considered finished:
+    immediately when ``block`` is False, or only once ``unblock()`` is called when
+    ``block`` is True (to simulate a long-running CLI that a cancel must interrupt).
+    ``unblock`` is what a stubbed ``os.killpg`` calls — the real kill path goes
+    through the process group, not ``proc.terminate``."""
+
+    def __init__(self, out="", err="", returncode=0, block=False):
+        self._out, self._err, self.returncode = out, err, returncode
+        self.pid = 4321
+        self._done = threading.Event()
+        if not block:
+            self._done.set()
+
+    def communicate(self, timeout=None):
+        self._done.wait()
+        return self._out, self._err
+
+    def unblock(self, returncode=-15):
+        self.returncode = returncode
+        self._done.set()
+
+
+def _patch_groupkill(monkeypatch, fake):
+    """Route _signal_tree's os.killpg at a blocking _FakePopen: record the signal and
+    release communicate(), so the kill path is exercised without a real process."""
+    sent = []
+    monkeypatch.setattr(cli_engine.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(
+        cli_engine.os, "killpg",
+        lambda _pgid, sig: (sent.append(sig), fake.unblock()),
+    )
+    return sent
+
+
+def test_call_returns_stripped_stdout_on_success(monkeypatch):
+    fake = _FakePopen(out="  delivered text \n", returncode=0)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
+    assert cli_engine._call(["claude", "-p"], "hi") == "delivered text"
+
+
 def test_call_raises_on_empty_output(monkeypatch):
     # returncode 0 but empty stdout → clear error, not a silent empty deliverable.
-    class _Proc:
-        returncode = 0
-        stdout = "   "
-        stderr = ""
-    monkeypatch.setattr(cli_engine.subprocess, "run", lambda *a, **k: _Proc())
+    fake = _FakePopen(out="   ", returncode=0)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
     with pytest.raises(RuntimeError, match="empty output"):
         cli_engine._call(["claude", "-p"], "hi")
+
+
+def test_call_raises_on_nonzero_exit_surfacing_detail(monkeypatch):
+    fake = _FakePopen(out="", err="boom on stderr", returncode=2)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
+    with pytest.raises(RuntimeError, match="exited 2: boom on stderr"):
+        cli_engine._call(["claude", "-p"], "hi")
+
+
+def test_call_terminates_inflight_subprocess_on_cancel(monkeypatch):
+    # The real Stop (v2): a cancel that fires while a call is in flight must KILL the
+    # child's process group immediately and raise MissionCancelled — not wait for the
+    # timeout. SIGTERM is the first escalation step.
+    monkeypatch.setattr(cli_engine, "_CANCEL_POLL_SECONDS", 0.01)
+    fake = _FakePopen(out="never returned", block=True)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
+    sent = _patch_groupkill(monkeypatch, fake)
+    with pytest.raises(cli_engine.MissionCancelled):
+        cli_engine._call(["claude", "-p"], "hi", should_cancel=lambda: True)
+    assert signal.SIGTERM in sent, "an in-flight child group must be signalled on cancel"
+
+
+def test_call_raises_runtime_on_timeout(monkeypatch):
+    # A withheld child past its deadline is terminated (group kill) and reported as a
+    # timeout.
+    monkeypatch.setattr(cli_engine, "_CANCEL_POLL_SECONDS", 0.01)
+    fake = _FakePopen(block=True)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
+    sent = _patch_groupkill(monkeypatch, fake)
+    with pytest.raises(RuntimeError, match="timed out after 0s"):
+        cli_engine._call(["claude", "-p"], "hi", timeout=0)
+    assert signal.SIGTERM in sent
+
+
+def test_call_kills_tree_on_keyboard_interrupt(monkeypatch):
+    # start_new_session detaches the child from our group, so a terminal Ctrl-C no
+    # longer reaches it — _call must kill the tree itself and re-raise, never orphan
+    # an in-flight engine process.
+    monkeypatch.setattr(cli_engine, "_CANCEL_POLL_SECONDS", 0.01)
+    fake = _FakePopen(block=True)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", lambda *a, **k: fake)
+    sent = _patch_groupkill(monkeypatch, fake)
+
+    def _interrupt():
+        raise KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        cli_engine._call(["claude", "-p"], "hi", should_cancel=_interrupt)
+    assert signal.SIGTERM in sent, "Ctrl-C must kill the in-flight tree, not orphan it"
 
 
 def test_short_verdict_extracts_token():
@@ -162,7 +254,7 @@ def test_run_mission_cli_populates_sources_from_deliverable(monkeypatch):
     # Sources are extracted from the final synthesis text into the structured field.
     monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
 
-    def _call(cmd, prompt, timeout=900):
+    def _call(cmd, prompt, timeout=900, should_cancel=None):
         low = prompt.lower()
         if "json array" in low:
             return '["solve"]'
@@ -183,11 +275,11 @@ def test_run_mission_cli_raises_clear_error_when_binary_missing(monkeypatch):
 
 
 def test_call_reports_missing_binary(monkeypatch):
-    # subprocess raising FileNotFoundError becomes a clear RuntimeError.
+    # Popen raising FileNotFoundError becomes a clear RuntimeError.
     def _boom(*a, **k):
         raise FileNotFoundError(2, "No such file or directory")
 
-    monkeypatch.setattr(cli_engine.subprocess, "run", _boom)
+    monkeypatch.setattr(cli_engine.subprocess, "Popen", _boom)
     with pytest.raises(RuntimeError, match="not found on PATH"):
         cli_engine._call(["claude", "-p"], "hello")
 
@@ -200,7 +292,7 @@ def _counting_engine(monkeypatch):
     monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
     calls = {"n": 0}
 
-    def _call(cmd, prompt, timeout=900):
+    def _call(cmd, prompt, timeout=900, should_cancel=None):
         calls["n"] += 1
         if calls["n"] == 1:
             return '["solve", "product"]'

@@ -15,9 +15,13 @@ without it a mission would fabricate data and violate Art. I.
 """
 
 import json
+import os
 import re
 import shutil
+import signal
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -63,38 +67,120 @@ def _load(name: str) -> str:
         return ""
 
 
-def _call(cmd_prefix: list, prompt: str, timeout: int = 900) -> str:
-    """Invoke the CLI with a prompt; return stdout. Raises RuntimeError on failure."""
+# How often a blocked `_call` wakes to poll `should_cancel`, and how long it waits
+# after SIGTERM before escalating to SIGKILL. Small enough that a Stop feels
+# immediate; large enough not to busy-spin.
+_CANCEL_POLL_SECONDS = 0.5
+_TERMINATE_GRACE = 5.0
+
+
+def _signal_tree(proc: "subprocess.Popen", sig: int) -> None:
+    """Signal the child's whole process GROUP, not just the direct child.
+
+    The engine CLIs are wrappers (the ``claude`` node process spawns its own child
+    tree); signalling only ``proc`` would leave grandchildren alive holding the
+    stdout/stderr pipes open, so ``communicate`` would never return and a Stop would
+    hang. ``Popen(start_new_session=True)`` makes ``proc`` a group leader, so one
+    ``killpg`` reaches the whole tree. Falls back to the direct child if the group
+    lookup fails (already reaped), and is a no-op once everything is gone."""
+    try:
+        os.killpg(os.getpgid(proc.pid), sig)
+    except OSError:  # group already gone / not found → try the direct child
+        try:
+            proc.send_signal(sig)
+        except OSError:
+            pass
+
+
+def _terminate(proc: "subprocess.Popen", reader: threading.Thread) -> None:
+    """Stop an in-flight child tree: SIGTERM, then SIGKILL if it ignores the grace
+    window. Joins the reader (bounded) so ``communicate`` finishes reaping the pipes
+    before we return — no zombie, no leaked descriptors, and never an unbounded hang
+    even if a stubborn grandchild lingers."""
+    _signal_tree(proc, signal.SIGTERM)
+    reader.join(_TERMINATE_GRACE)
+    if reader.is_alive():
+        _signal_tree(proc, signal.SIGKILL)
+        reader.join(_TERMINATE_GRACE)
+
+
+def _call(
+    cmd_prefix: list,
+    prompt: str,
+    timeout: int = 900,
+    should_cancel: Optional[Callable[[], bool]] = None,
+) -> str:
+    """Invoke the CLI with a prompt; return stdout. Raises RuntimeError on failure.
+
+    The child runs under a reader thread (``communicate`` drains both pipes, so a
+    large deliverable can't deadlock on a full pipe) while this thread polls
+    ``should_cancel`` every ``_CANCEL_POLL_SECONDS``. When a cancel fires mid-call
+    the child's whole process group is terminated (SIGTERM, then SIGKILL after
+    ``_TERMINATE_GRACE``) and ``MissionCancelled`` is raised — so a Stop no longer
+    waits up to ``timeout``. With ``should_cancel=None`` the poll never fires,
+    so standalone behaviour is byte-identical to the old blocking ``subprocess.run``.
+    """
     binary = cmd_prefix[0]
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd_prefix + [prompt],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
+            start_new_session=True,  # own process group → a cancel can kill the whole tree
         )
     except FileNotFoundError:
         raise RuntimeError(
             f"engine CLI '{binary}' not found on PATH — install it and authenticate "
             f"(e.g. Claude Code / Codex CLI / Gemini CLI)."
         )
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f"engine CLI '{binary}' timed out after {timeout}s.")
+
+    streams: dict = {}
+
+    def _drain() -> None:
+        streams["out"], streams["err"] = proc.communicate()
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
+
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            reader.join(_CANCEL_POLL_SECONDS)
+            if not reader.is_alive():
+                break
+            if should_cancel is not None and should_cancel():
+                _terminate(proc, reader)
+                raise MissionCancelled()
+            if time.monotonic() > deadline:
+                _terminate(proc, reader)
+                raise RuntimeError(f"engine CLI '{binary}' timed out after {timeout}s.")
+    except KeyboardInterrupt:
+        # `start_new_session` detaches the child from our process group, so a
+        # terminal Ctrl-C no longer reaches it — kill the tree ourselves, then
+        # re-raise so the CLI exits as the user asked (no orphaned engine process).
+        _terminate(proc, reader)
+        raise
+
+    stdout = streams.get("out") or ""
+    stderr = streams.get("err") or ""
     if proc.returncode != 0:
         # Claude Code / Codex often write the real error to stdout in -p/exec mode,
         # so surface whichever stream has content (stderr first) instead of a bare code.
-        detail = (proc.stderr.strip() or proc.stdout.strip())[:800]
+        detail = (stderr.strip() or stdout.strip())[:800]
         raise RuntimeError(
             f"CLI engine '{binary}' exited {proc.returncode}"
             + (f": {detail}" if detail else " (no output on stdout or stderr)")
         )
-    out = proc.stdout.strip()
+    out = stdout.strip()
     if not out:
         raise RuntimeError(f"engine CLI '{binary}' returned empty output.")
     return out
 
 
-def _route_via_cli(engine: str, goal: str) -> list:
+def _route_via_cli(
+    engine: str, goal: str, should_cancel: Optional[Callable[[], bool]] = None
+) -> list:
     """Route via the CLI, driven by the canonical router doctrine (router-agency.md).
 
     Loads the same routing doctrine the whole agency uses — solve-first canonical
@@ -121,7 +207,7 @@ def _route_via_cli(engine: str, goal: str) -> list:
     )
 
     try:
-        response = _call(route_cmd, prompt, timeout=60)
+        response = _call(route_cmd, prompt, timeout=60, should_cancel=should_cancel)
         match = re.search(r'\[.*?\]', response, re.DOTALL)
         if match:
             depts = json.loads(match.group())
@@ -256,12 +342,19 @@ _RETRY_VERDICTS = ("VETO", "PASS-WITH-FIXES")
 
 
 class MissionCancelled(Exception):
-    """Cooperative cancellation requested at a phase boundary.
+    """Cancellation requested — the mission is aborted before any persistence.
 
     Raised by ``run_mission_cli`` BEFORE it returns a dossier, so a cancelled
     mission is never persisted (``runner_bridge`` only saves after the call
-    returns). Checks happen only at clean phase boundaries — never inside the
-    synthesise→inspect veto loop — so the Art. IX gate behaviour is unchanged.
+    returns). Two layers raise it: ``_check_cancel`` at clean phase boundaries
+    (a no-spend early-exit between calls), and ``_call`` itself when a cancel
+    lands while a child process is in flight — it kills the child and raises,
+    so a Stop no longer waits up to the per-call timeout.
+
+    Art. IX still holds: an aborted mission yields NO dossier, so no verdict is
+    ever altered and no un-inspected result is ever delivered. The veto loop's
+    logic is unchanged; only an abort can now happen faster (mid-call), and an
+    abort produces nothing at all rather than a result that skipped the gate.
     """
 
 
@@ -303,12 +396,15 @@ def run_mission_cli(
     Returns a dossier dict (goal, route, dept_outputs, delivered, verdicts, iteration).
     Web search is live — the CLI tool fetches real pages at execution time.
 
-    ``should_cancel`` is an optional cooperative-cancel predicate. It is polled only
-    at phase boundaries (after routing, before each department, before each
-    synthesise→inspect iteration). If it returns True the mission raises
-    ``MissionCancelled`` — which propagates before any persistence, so nothing is
-    saved. It is never polled inside a started iteration, so a synthesis always gets
-    its inspection (Art. IX). When None, every check is a no-op.
+    ``should_cancel`` is an optional cancel predicate, polled in two places: at
+    phase boundaries (after routing, before each department, before each
+    synthesise→inspect iteration) as a no-spend early-exit, AND inside ``_call``
+    while a child process is in flight — so a Stop kills the running subprocess
+    immediately instead of waiting up to the per-call timeout. Either way the
+    mission raises ``MissionCancelled``, which propagates before any persistence,
+    so nothing is saved. An aborted mission yields no dossier, so no verdict is
+    altered and no un-inspected result is delivered (Art. IX). When None, every
+    check is a no-op and behaviour is byte-identical to a non-cancellable run.
     """
     cmd = ENGINES.get(engine)
     if cmd is None:
@@ -320,7 +416,7 @@ def run_mission_cli(
         )
 
     print(f"[{engine}] routing...", end=" ", flush=True)
-    route = _route_via_cli(engine, goal)
+    route = _route_via_cli(engine, goal, should_cancel=should_cancel)
     print(f"{' → '.join(route)}", flush=True)
     _emit(on_event, {"phase": "route", "status": "done", "route": route})
     _check_cancel(should_cancel)   # CP1: after routing, before any department spends a call
@@ -330,7 +426,9 @@ def run_mission_cli(
         _check_cancel(should_cancel)   # CP2: skip a department that has not started yet
         print(f"[{engine}] {dept}...", end=" ", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "start"})
-        dept_outputs[dept] = _call(cmd, _dept_prompt(dept, goal, dept_outputs))
+        dept_outputs[dept] = _call(
+            cmd, _dept_prompt(dept, goal, dept_outputs), should_cancel=should_cancel
+        )
         print("done", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "done"})
 
@@ -344,13 +442,17 @@ def run_mission_cli(
         label = "synthesising" if iteration == 1 else f"re-synthesising (iter {iteration})"
         print(f"[{engine}] {label}...", end=" ", flush=True)
         _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "start"})
-        delivered = _call(cmd, _synth_prompt(goal, route, dept_outputs, fixes))
+        delivered = _call(
+            cmd, _synth_prompt(goal, route, dept_outputs, fixes), should_cancel=should_cancel
+        )
         print("done", flush=True)
         _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "done"})
 
         print(f"[{engine}] inspecting...", end=" ", flush=True)
         _emit(on_event, {"phase": "inspect", "iteration": iteration, "status": "start"})
-        verdict_text = _call(cmd, _inspect_prompt(goal, delivered))
+        verdict_text = _call(
+            cmd, _inspect_prompt(goal, delivered), should_cancel=should_cancel
+        )
         token = _short_verdict(verdict_text)
         print(token, flush=True)
         _emit(on_event, {"phase": "inspect", "iteration": iteration, "verdict": token})
