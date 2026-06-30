@@ -292,7 +292,9 @@ def _fmt_dept_outputs(dept_outputs: dict) -> str:
 
 # ── prompt builders (one per mission phase) ─────────────────────────────────────
 
-def _dept_prompt(dept: str, goal: str, dept_outputs: dict) -> str:
+def _dept_prompt(
+    dept: str, goal: str, dept_outputs: dict, asset_clause: Optional[str] = None
+) -> str:
     shared = _load(f"_shared-{dept}")
     return (
         f"You are the {dept} department commander for an AI agency.\n\n"
@@ -303,10 +305,17 @@ def _dept_prompt(dept: str, goal: str, dept_outputs: dict) -> str:
         "CRITICAL: Use WebSearch to find current, real data (today's date, live sources). "
         "Never invent statistics, market sizes, or citations. "
         "Every factual claim must come from a real source you have searched and verified."
+        + (f"\n\n{asset_clause}" if asset_clause else "")
     )
 
 
-def _synth_prompt(goal: str, route: list, dept_outputs: dict, fixes: str = None) -> str:
+def _synth_prompt(
+    goal: str,
+    route: list,
+    dept_outputs: dict,
+    fixes: str = None,
+    asset_clause: Optional[str] = None,
+) -> str:
     commander_doc = _load("commander-agency")
     fixes_block = (
         "PREVIOUS INSPECTOR FINDINGS — the prior synthesis did NOT pass; resolve every "
@@ -320,6 +329,7 @@ def _synth_prompt(goal: str, route: list, dept_outputs: dict, fixes: str = None)
         + fixes_block
         + "Synthesise all department outputs into a final cross-department mission dossier. "
         "List decisions taken, open items to verify, and all sources cited with URLs and dates."
+        + (f"\n\n{asset_clause}" if asset_clause else "")
     )
 
 
@@ -385,6 +395,7 @@ def run_mission_cli(
     engine: str = "claude-code",
     on_event: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    asset_clause: Optional[str] = None,
 ) -> dict:
     """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
 
@@ -405,6 +416,14 @@ def run_mission_cli(
     so nothing is saved. An aborted mission yields no dossier, so no verdict is
     altered and no un-inspected result is delivered (Art. IX). When None, every
     check is a no-op and behaviour is byte-identical to a non-cancellable run.
+
+    ``asset_clause`` is an optional studio-supplied instruction appended verbatim
+    to each department prompt and the synthesis prompt (so a department or the
+    synthesis may emit fenced ``asset`` markers for the studio to render
+    post-inspection). It is NOT given to the inspector, the router, or the slug —
+    those see the unmodified goal. When None the clause is never appended, so the
+    prompts — and standalone agency-kit's behaviour — are byte-identical to a run
+    without it (the same additive, default-None contract as on_event/should_cancel).
     """
     cmd = ENGINES.get(engine)
     if cmd is None:
@@ -427,7 +446,9 @@ def run_mission_cli(
         print(f"[{engine}] {dept}...", end=" ", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "start"})
         dept_outputs[dept] = _call(
-            cmd, _dept_prompt(dept, goal, dept_outputs), should_cancel=should_cancel
+            cmd,
+            _dept_prompt(dept, goal, dept_outputs, asset_clause=asset_clause),
+            should_cancel=should_cancel,
         )
         print("done", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "done"})
@@ -443,7 +464,9 @@ def run_mission_cli(
         print(f"[{engine}] {label}...", end=" ", flush=True)
         _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "start"})
         delivered = _call(
-            cmd, _synth_prompt(goal, route, dept_outputs, fixes), should_cancel=should_cancel
+            cmd,
+            _synth_prompt(goal, route, dept_outputs, fixes, asset_clause=asset_clause),
+            should_cancel=should_cancel,
         )
         print("done", flush=True)
         _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "done"})
