@@ -70,9 +70,20 @@ def serialize_dossier(dossier: dict, project_root) -> Path:
     project_root = Path(project_root)
     missions = project_root / "missions"
     missions.mkdir(parents=True, exist_ok=True)
-    mission_id = f"{_next_id(missions)}-{_store_slug(dossier.get('goal', ''), max_words=6)}"
-    out = missions / mission_id
-    out.mkdir()
+    slug = _store_slug(dossier.get("goal", ""), max_words=6)
+    # _next_id() then mkdir() is a TOCTOU race: two concurrent missions can read the
+    # same highest number and collide. mkdir() (no exist_ok) is the atomic claim —
+    # on FileExistsError, recompute the next id and retry rather than aborting.
+    for _ in range(100):
+        mission_id = f"{_next_id(missions)}-{slug}"
+        out = missions / mission_id
+        try:
+            out.mkdir()
+            break
+        except FileExistsError:
+            continue
+    else:
+        raise RuntimeError(f"could not allocate a mission folder under {missions}")
     (out / "dossier.md").write_text(_dossier_md(mission_id, dossier), encoding="utf-8")
     delivered = dossier.get("delivered") or "(no deliverable)"
     (out / "deliverable.md").write_text(
