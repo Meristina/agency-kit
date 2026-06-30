@@ -255,6 +255,23 @@ MAX_ITERS = 3                      # synthesise→inspect cap (Art. IX: VETO loo
 _RETRY_VERDICTS = ("VETO", "PASS-WITH-FIXES")
 
 
+class MissionCancelled(Exception):
+    """Cooperative cancellation requested at a phase boundary.
+
+    Raised by ``run_mission_cli`` BEFORE it returns a dossier, so a cancelled
+    mission is never persisted (``runner_bridge`` only saves after the call
+    returns). Checks happen only at clean phase boundaries — never inside the
+    synthesise→inspect veto loop — so the Art. IX gate behaviour is unchanged.
+    """
+
+
+def _check_cancel(should_cancel: Optional[Callable[[], bool]]) -> None:
+    """Raise ``MissionCancelled`` if a cancel has been requested. No-op when
+    ``should_cancel`` is None, so default behaviour is byte-identical."""
+    if should_cancel is not None and should_cancel():
+        raise MissionCancelled()
+
+
 def _emit(on_event: Optional[Callable], event: dict) -> None:
     """Fire the optional progress callback, swallowing any error.
 
@@ -274,6 +291,7 @@ def run_mission_cli(
     goal: str,
     engine: str = "claude-code",
     on_event: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> dict:
     """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
 
@@ -284,6 +302,13 @@ def run_mission_cli(
 
     Returns a dossier dict (goal, route, dept_outputs, delivered, verdicts, iteration).
     Web search is live — the CLI tool fetches real pages at execution time.
+
+    ``should_cancel`` is an optional cooperative-cancel predicate. It is polled only
+    at phase boundaries (after routing, before each department, before each
+    synthesise→inspect iteration). If it returns True the mission raises
+    ``MissionCancelled`` — which propagates before any persistence, so nothing is
+    saved. It is never polled inside a started iteration, so a synthesis always gets
+    its inspection (Art. IX). When None, every check is a no-op.
     """
     cmd = ENGINES.get(engine)
     if cmd is None:
@@ -298,9 +323,11 @@ def run_mission_cli(
     route = _route_via_cli(engine, goal)
     print(f"{' → '.join(route)}", flush=True)
     _emit(on_event, {"phase": "route", "status": "done", "route": route})
+    _check_cancel(should_cancel)   # CP1: after routing, before any department spends a call
 
     dept_outputs: dict = {}
     for dept in route:
+        _check_cancel(should_cancel)   # CP2: skip a department that has not started yet
         print(f"[{engine}] {dept}...", end=" ", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "start"})
         dept_outputs[dept] = _call(cmd, _dept_prompt(dept, goal, dept_outputs))
@@ -312,6 +339,7 @@ def run_mission_cli(
     fixes = None
     iteration = 0
     while iteration < MAX_ITERS:
+        _check_cancel(should_cancel)   # CP3: between complete synth→inspect cycles, never within one
         iteration += 1
         label = "synthesising" if iteration == 1 else f"re-synthesising (iter {iteration})"
         print(f"[{engine}] {label}...", end=" ", flush=True)

@@ -190,3 +190,48 @@ def test_call_reports_missing_binary(monkeypatch):
     monkeypatch.setattr(cli_engine.subprocess, "run", _boom)
     with pytest.raises(RuntimeError, match="not found on PATH"):
         cli_engine._call(["claude", "-p"], "hello")
+
+
+# ── cooperative cancellation (the real Stop) ────────────────────────────────
+
+def _counting_engine(monkeypatch):
+    """Stub the _call boundary and return the shared call counter. Routing is the
+    first call (→ two depts); every later call is dept/synth/inspect text."""
+    monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
+    calls = {"n": 0}
+
+    def _call(cmd, prompt, timeout=900):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return '["solve", "product"]'
+        return f"OUTPUT {calls['n']}"
+
+    monkeypatch.setattr(cli_engine, "_call", _call)
+    return calls
+
+
+def test_cancel_at_route_boundary_raises_before_any_department(monkeypatch):
+    # CP1: a cancel requested before departments start must stop the mission with
+    # only the routing call spent — no department is ever invoked.
+    calls = _counting_engine(monkeypatch)
+    with pytest.raises(cli_engine.MissionCancelled):
+        cli_engine.run_mission_cli("rebuild onboarding", should_cancel=lambda: True)
+    assert calls["n"] == 1, "no department _call may run once cancel fires at CP1"
+
+
+def test_cancel_after_departments_raises_before_synthesis(monkeypatch):
+    # CP3: cancel fires only after both departments have run (3 calls: route + 2
+    # depts). The synthesise→inspect loop must never start — no further _call.
+    calls = _counting_engine(monkeypatch)
+    with pytest.raises(cli_engine.MissionCancelled):
+        cli_engine.run_mission_cli("rebuild onboarding", should_cancel=lambda: calls["n"] >= 3)
+    assert calls["n"] == 3, "synthesis/inspect must not run once cancel fires at CP3"
+
+
+def test_should_cancel_false_runs_to_completion(monkeypatch):
+    # An always-False predicate is byte-identical to no predicate: full dossier.
+    _counting_engine(monkeypatch)
+    dossier = cli_engine.run_mission_cli("rebuild onboarding", should_cancel=lambda: False)
+    assert set(dossier["dept_outputs"]) == {"solve", "product"}
+    assert dossier["delivered"]
+    assert dossier["verdicts"]

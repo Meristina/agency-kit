@@ -99,6 +99,7 @@ def _run_and_persist(
     project_root: str,
     engine: str,
     on_event: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
@@ -107,10 +108,14 @@ def _run_and_persist(
     `on_event` is an optional observational progress callback threaded straight
     through to `run_mission_cli` (used by the Studio server to stream SSE). Default
     None ⇒ unchanged behaviour.
+
+    `should_cancel` is an optional cooperative-cancel predicate. When it fires,
+    `run_mission_cli` raises `MissionCancelled` BEFORE returning — so the store.save
+    and serialize_dossier below never run, and a cancelled mission leaves no trace.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
-    dossier = run_mission_cli(goal, engine=engine, on_event=on_event)
+    dossier = run_mission_cli(goal, engine=engine, on_event=on_event, should_cancel=should_cancel)
     dossier["mission_id"] = store.new_mission_id(goal)
     # Stamp the canonical project root so store.list_missions can scope history to
     # this project (the Studio GUI launched with --path), not the global store.
@@ -125,6 +130,7 @@ def run(
     project_root: str = ".",
     engine: str = "claude-code",
     on_event: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
@@ -136,9 +142,12 @@ def run(
     `on_event` is an optional observational progress callback (route/dept/synth/
     inspect events) used by the Studio server to stream live SSE progress.
 
+    `should_cancel` is an optional cooperative-cancel predicate polled at phase
+    boundaries; if it fires the mission stops and nothing is persisted.
+
     Returns a MissionResult (path + dossier) so callers can read the real verdict.
     """
-    return _run_and_persist(goal, project_root, engine, on_event=on_event)
+    return _run_and_persist(goal, project_root, engine, on_event=on_event, should_cancel=should_cancel)
 
 
 def resume(
@@ -146,6 +155,7 @@ def resume(
     project_root: str = ".",
     engine: str = "claude-code",
     on_event: Optional[Callable[[dict], None]] = None,
+    should_cancel: Optional[Callable[[], bool]] = None,
 ) -> MissionResult:
     """Re-run a saved mission's goal through the engine.
 
@@ -156,4 +166,4 @@ def resume(
     from agency_kit import store
     saved = store.load(mission_id)
     goal = saved.get("goal", "")
-    return _run_and_persist(goal, project_root, engine, on_event=on_event)
+    return _run_and_persist(goal, project_root, engine, on_event=on_event, should_cancel=should_cancel)

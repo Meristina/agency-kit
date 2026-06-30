@@ -75,6 +75,26 @@ def test_serialize_dossier_retries_past_a_colliding_folder(tmp_path, monkeypatch
     assert (out / "deliverable.md").is_file()
 
 
+def test_cancelled_mission_persists_nothing(tmp_path, monkeypatch):
+    # No-persist invariant: when the engine raises MissionCancelled, _run_and_persist
+    # must propagate it WITHOUT calling store.save or writing a missions/<id>/ folder.
+    from agency_cli import runner_bridge
+    from agency_cli.engines.cli_engine import MissionCancelled
+
+    def _raise(*a, **k):
+        raise MissionCancelled()
+
+    saved = {"n": 0}
+    monkeypatch.setattr("agency_cli.engines.cli_engine.run_mission_cli", _raise)
+    monkeypatch.setattr("agency_kit.store.save", lambda *a, **k: saved.__setitem__("n", saved["n"] + 1))
+
+    with pytest.raises(MissionCancelled):
+        runner_bridge.run("diagnose the outage", project_root=str(tmp_path))
+
+    assert saved["n"] == 0, "store.save must never run for a cancelled mission"
+    assert not (tmp_path / "missions").exists(), "no mission folder may be written on cancel"
+
+
 # ---- integrations._install_claude -------------------------------------------
 # Bug: sources["skills"].iterdir() called unconditionally; agency-kit has no
 # skills/ directory, so `agency init --agent claude` raised FileNotFoundError.
