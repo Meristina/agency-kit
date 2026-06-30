@@ -136,6 +136,45 @@ def test_short_verdict_extracts_token():
     assert cli_engine._short_verdict("no verdict word here") == "DELIVERED"
 
 
+def test_extract_sources_pulls_urls_deduped_in_order():
+    text = (
+        "## Sources cited\n"
+        "| # | Source | URL |\n"
+        "| 1 | Scrum Alliance | https://example.com/a |\n"
+        "| 2 | Mountain Goat | https://example.com/b |\n"
+        "See also the inline [study](https://example.com/a) again, and bare "
+        "https://example.com/c."
+    )
+    # First-seen order, de-duplicated, trailing sentence punctuation stripped.
+    assert cli_engine._extract_sources(text) == [
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+    ]
+
+
+def test_extract_sources_empty_when_no_urls():
+    assert cli_engine._extract_sources("no links here") == []
+    assert cli_engine._extract_sources("") == []
+
+
+def test_run_mission_cli_populates_sources_from_deliverable(monkeypatch):
+    # Sources are extracted from the final synthesis text into the structured field.
+    monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
+
+    def _call(cmd, prompt, timeout=900):
+        low = prompt.lower()
+        if "json array" in low:
+            return '["solve"]'
+        if "issue a verdict" in low:
+            return "VERDICT: PASS"
+        return "Findings. Source: https://example.com/x and https://example.com/y"
+
+    monkeypatch.setattr(cli_engine, "_call", _call)
+    d = cli_engine.run_mission_cli("diagnose", engine="claude-code")
+    assert d["sources"] == ["https://example.com/x", "https://example.com/y"]
+
+
 def test_run_mission_cli_raises_clear_error_when_binary_missing(monkeypatch):
     # Engine known but its CLI is not on PATH → fail fast with a clear RuntimeError.
     monkeypatch.setattr(cli_engine.shutil, "which", lambda b: None)

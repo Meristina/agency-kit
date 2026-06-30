@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Callable, Optional
 
 from agency_kit.departments import DEPT_NAMES, VALID_DEPTS
 
@@ -166,6 +167,32 @@ def _short_verdict(text: str) -> str:
     return "DELIVERED"
 
 
+# A cited source URL. Bounded so it stops at whitespace and the markdown delimiters
+# that wrap a link — ( ) [ ] < > " ' | — so the URL is captured cleanly whether the
+# synthesis emits it in a Sources table cell, a list, or an inline [text](url) link.
+_SOURCE_URL_RE = re.compile(r"https?://[^\s<>()\[\]\"'|]+")
+
+
+def _extract_sources(text: str) -> list:
+    """Surface the source URLs cited in a deliverable, de-duplicated in first-seen
+    order, for the dossier's structured ``sources`` field.
+
+    The synthesis prompt asks for "all sources cited with URLs and dates", so the
+    URLs live in the delivered markdown (typically a "Sources cited" table). Pulling
+    them by URL shape is format-agnostic — it works for tables, lists, or inline
+    links — and additive: text with no URL yields ``[]``, exactly the prior
+    behaviour. ``decisions`` / ``open_to_verify`` are deliberately NOT auto-extracted:
+    their layout (prose vs table vs list) is model-dependent, so a heuristic parser
+    would risk injecting markdown noise rather than reliable items.
+    """
+    seen: dict = {}
+    for raw in _SOURCE_URL_RE.findall(text or ""):
+        url = raw.rstrip(".,;:!?")  # drop trailing sentence punctuation
+        if url:
+            seen.setdefault(url, None)
+    return list(seen)
+
+
 def _fmt_dept_outputs(dept_outputs: dict) -> str:
     if not dept_outputs:
         return "(no prior department output)"
@@ -228,7 +255,26 @@ MAX_ITERS = 3                      # synthesise→inspect cap (Art. IX: VETO loo
 _RETRY_VERDICTS = ("VETO", "PASS-WITH-FIXES")
 
 
-def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
+def _emit(on_event: Optional[Callable], event: dict) -> None:
+    """Fire the optional progress callback, swallowing any error.
+
+    The hook is purely observational (GUI live progress): a misbehaving callback
+    must never abort or alter a live mission. When on_event is None this is a
+    no-op, so the default behaviour — and the existing test suite — is unchanged.
+    """
+    if on_event is None:
+        return
+    try:
+        on_event(event)
+    except Exception:  # observational only — never let the GUI break the mission
+        pass
+
+
+def run_mission_cli(
+    goal: str,
+    engine: str = "claude-code",
+    on_event: Optional[Callable[[dict], None]] = None,
+) -> dict:
     """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
 
     The inspector is a real gate (Art. IX): on VETO or PASS-WITH-FIXES the synthesis is
@@ -251,12 +297,15 @@ def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
     print(f"[{engine}] routing...", end=" ", flush=True)
     route = _route_via_cli(engine, goal)
     print(f"{' → '.join(route)}", flush=True)
+    _emit(on_event, {"phase": "route", "status": "done", "route": route})
 
     dept_outputs: dict = {}
     for dept in route:
         print(f"[{engine}] {dept}...", end=" ", flush=True)
+        _emit(on_event, {"phase": "dept", "dept": dept, "status": "start"})
         dept_outputs[dept] = _call(cmd, _dept_prompt(dept, goal, dept_outputs))
         print("done", flush=True)
+        _emit(on_event, {"phase": "dept", "dept": dept, "status": "done"})
 
     verdicts: list = []
     delivered = ""
@@ -266,13 +315,17 @@ def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
         iteration += 1
         label = "synthesising" if iteration == 1 else f"re-synthesising (iter {iteration})"
         print(f"[{engine}] {label}...", end=" ", flush=True)
+        _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "start"})
         delivered = _call(cmd, _synth_prompt(goal, route, dept_outputs, fixes))
         print("done", flush=True)
+        _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "done"})
 
         print(f"[{engine}] inspecting...", end=" ", flush=True)
+        _emit(on_event, {"phase": "inspect", "iteration": iteration, "status": "start"})
         verdict_text = _call(cmd, _inspect_prompt(goal, delivered))
         token = _short_verdict(verdict_text)
         print(token, flush=True)
+        _emit(on_event, {"phase": "inspect", "iteration": iteration, "verdict": token})
 
         verdicts.append({"engine": engine, "verdict": token, "detail": verdict_text, "iteration": iteration})
         if token not in _RETRY_VERDICTS:   # PASS, or no actionable verdict — stop
@@ -285,7 +338,7 @@ def run_mission_cli(goal: str, engine: str = "claude-code") -> dict:
         "context": None,
         "dept_outputs": dept_outputs,
         "decisions": [],
-        "sources": [],
+        "sources": _extract_sources(delivered),
         "open_to_verify": [],
         "direction_check": None,
         "verdicts": verdicts,

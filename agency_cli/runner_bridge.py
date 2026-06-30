@@ -9,7 +9,7 @@ and serializes it into `missions/<NNN-slug>/` as Markdown (`dossier.md` +
 import json
 import re
 from pathlib import Path
-from typing import NamedTuple
+from typing import Callable, NamedTuple, Optional
 
 from agency_kit.store import slug as _store_slug
 
@@ -81,21 +81,35 @@ def serialize_dossier(dossier: dict, project_root) -> Path:
     return out
 
 
-def _run_and_persist(goal: str, project_root: str, engine: str) -> MissionResult:
+def _run_and_persist(
+    goal: str,
+    project_root: str,
+    engine: str,
+    on_event: Optional[Callable[[dict], None]] = None,
+) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
     missions/<id>/ copy. Shared by run() and resume() so both persist identically.
+
+    `on_event` is an optional observational progress callback threaded straight
+    through to `run_mission_cli` (used by the Studio server to stream SSE). Default
+    None ⇒ unchanged behaviour.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
-    dossier = run_mission_cli(goal, engine=engine)
+    dossier = run_mission_cli(goal, engine=engine, on_event=on_event)
     dossier["mission_id"] = store.new_mission_id(goal)
     store.save(dossier)
     path = serialize_dossier(dossier, Path(project_root))
     return MissionResult(path=path, dossier=dossier)
 
 
-def run(goal: str, project_root: str = ".", engine: str = "claude-code") -> MissionResult:
+def run(
+    goal: str,
+    project_root: str = ".",
+    engine: str = "claude-code",
+    on_event: Optional[Callable[[dict], None]] = None,
+) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
     engine="claude-code" — `claude -p "..." --allowedTools WebSearch`  (default)
@@ -103,12 +117,20 @@ def run(goal: str, project_root: str = ".", engine: str = "claude-code") -> Miss
     engine="gemini"      — `gemini -p "..."`
     No API key required: each CLI uses its own authenticated session + web search.
 
+    `on_event` is an optional observational progress callback (route/dept/synth/
+    inspect events) used by the Studio server to stream live SSE progress.
+
     Returns a MissionResult (path + dossier) so callers can read the real verdict.
     """
-    return _run_and_persist(goal, project_root, engine)
+    return _run_and_persist(goal, project_root, engine, on_event=on_event)
 
 
-def resume(mission_id: str, project_root: str = ".", engine: str = "claude-code") -> MissionResult:
+def resume(
+    mission_id: str,
+    project_root: str = ".",
+    engine: str = "claude-code",
+    on_event: Optional[Callable[[dict], None]] = None,
+) -> MissionResult:
     """Re-run a saved mission's goal through the engine.
 
     The engine is single-shot (no quota checkpoint), so 'resume' loads the saved
@@ -118,4 +140,4 @@ def resume(mission_id: str, project_root: str = ".", engine: str = "claude-code"
     from agency_kit import store
     saved = store.load(mission_id)
     goal = saved.get("goal", "")
-    return _run_and_persist(goal, project_root, engine)
+    return _run_and_persist(goal, project_root, engine, on_event=on_event)
