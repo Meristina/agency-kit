@@ -27,8 +27,12 @@ def export_pdf(mission_id: str, assets_root=None) -> Path:
     ``assets_root`` (Studio only) is the directory the ``/media`` route serves from
     (``<project>/studio_assets``). When given, any ``/media/<rel>`` reference in the
     deliverable is resolved to its on-disk file so generated images embed in the PDF
-    (audio becomes a caption — a PDF can't play sound). Defaults to None ⇒ behaviour
-    is byte-identical to standalone agency-kit (no asset rewriting).
+    (audio becomes a caption — a PDF can't play sound), and WeasyPrint is locked to a
+    url_fetcher that only loads ``file://`` resources inside that root — so a raw
+    ``![x](file:///etc/passwd)`` / ``<img src=http://…>`` in the (partly untrusted)
+    deliverable can't pull arbitrary local files or make outbound requests during render.
+    Defaults to None ⇒ the call is byte-identical to standalone agency-kit (no asset
+    rewriting, no base_url, default fetcher).
     """
     try:
         import weasyprint
@@ -54,10 +58,39 @@ def export_pdf(mission_id: str, assets_root=None) -> Path:
     html = _wrap_html(html_body)
 
     out = md_path.parent / "deliverable.pdf"
-    # base_url lets WeasyPrint resolve any stray relative ref against the deliverable's
-    # own folder; the /media images are already absolute file:// URIs after localizing.
-    weasyprint.HTML(string=html, base_url=md_path.parent.as_uri() + "/").write_pdf(str(out))
+    if assets_root is not None:
+        # Localized assets are already absolute file:// URIs (no base_url needed); the
+        # fetcher confines every resource load to the asset root, closing the file://
+        # disclosure + http(s) SSRF surface on the untrusted deliverable text.
+        html_obj = weasyprint.HTML(string=html, url_fetcher=_asset_only_fetcher(Path(assets_root).resolve()))
+    else:
+        html_obj = weasyprint.HTML(string=html)  # standalone: byte-identical to pre-Wave-3
+    html_obj.write_pdf(str(out))
     return out
+
+
+def _asset_only_fetcher(root: Path):
+    """A WeasyPrint ``url_fetcher`` that permits ONLY ``file://`` URLs resolving inside
+    ``root`` (the localized assets, already vetted by ``_localize_assets``). Every other
+    scheme/host — an ``http(s)`` SSRF/beacon, or a ``file://`` to an arbitrary local file
+    spliced into the untrusted deliverable via raw markdown — is refused, so rendering an
+    attacker-influenced deliverable can't read outside the asset root or reach the network.
+    """
+    from urllib.parse import unquote, urlparse
+
+    def _fetch(url: str):
+        parsed = urlparse(url)
+        if parsed.scheme != "file":
+            raise ValueError(f"PDF render blocked a non-file resource URL: {parsed.scheme}:")
+        try:
+            resolved = Path(unquote(parsed.path)).resolve()
+            resolved.relative_to(root)
+        except (ValueError, OSError):
+            raise ValueError("PDF render blocked a file URL outside the asset root")
+        import weasyprint  # only reached once the URL is vetted in-root
+        return weasyprint.default_url_fetcher(url)
+
+    return _fetch
 
 
 def _localize_assets(content: str, assets_root: Path) -> str:

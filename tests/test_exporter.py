@@ -8,7 +8,9 @@ tests need neither WeasyPrint nor Markdown — they exercise the rewriting direc
 
 from pathlib import Path
 
-from agency_cli.exporter import _localize_assets
+import pytest
+
+from agency_cli.exporter import _asset_only_fetcher, _localize_assets
 
 
 def _seed_image(root: Path, rel: str) -> Path:
@@ -80,3 +82,41 @@ def test_no_assets_root_is_a_noop_via_export_path():
     # no /media refs it is the identity, mirroring the byte-identical standalone path.
     md = "# Title\n\nplain body, no assets"
     assert _localize_assets(md, Path("/nonexistent/root")) == md
+
+
+# ── _asset_only_fetcher: WeasyPrint resource allowlist ────────────────────────
+# The PDF renders partly-untrusted deliverable text; the fetcher must confine every
+# resource load to the asset root so a raw file:// / http(s) ref can't read outside it.
+
+def test_fetcher_blocks_non_file_scheme(tmp_path):
+    fetch = _asset_only_fetcher((tmp_path / "studio_assets").resolve())
+    with pytest.raises(ValueError):  # http(s) SSRF/beacon refused before any fetch
+        fetch("http://evil.example/x.png")
+
+
+def test_fetcher_blocks_file_outside_the_root(tmp_path):
+    root = tmp_path / "studio_assets"
+    root.mkdir()
+    secret = tmp_path / "secret.png"  # sits OUTSIDE the asset root
+    secret.write_bytes(b"x")
+    fetch = _asset_only_fetcher(root.resolve())
+    with pytest.raises(ValueError):  # local-file disclosure refused
+        fetch(secret.as_uri())
+
+
+def test_fetcher_allows_a_file_inside_the_root(tmp_path):
+    root = tmp_path / "studio_assets"
+    img = root / "missions/m/images/a.png"
+    img.parent.mkdir(parents=True)
+    img.write_bytes(b"\x89PNG\r\n")
+    fetch = _asset_only_fetcher(root.resolve())
+    # Containment passes; the only step past it is the real WeasyPrint fetch. Whether
+    # weasyprint imports cleanly (returns a dict) or is unavailable (ImportError, or
+    # OSError when its native libs are missing), it must NEVER be the ValueError the
+    # block paths raise — an in-root asset is permitted.
+    try:
+        assert isinstance(fetch(img.as_uri()), dict)
+    except (ImportError, OSError):
+        pytest.skip("weasyprint unavailable in this environment")
+    except ValueError:
+        raise AssertionError("an in-root file:// asset must not be blocked")
