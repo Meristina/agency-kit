@@ -95,6 +95,175 @@ def test_cancelled_mission_persists_nothing(tmp_path, monkeypatch):
     assert not (tmp_path / "missions").exists(), "no mission folder may be written on cancel"
 
 
+# ---- runner_bridge multimodal hook (Wave 3 D2 — render_assets / asset_clause) ----
+# The Studio threads `asset_clause` into the engine and a best-effort `render_assets`
+# callback that runs AFTER the engine returns but BEFORE persistence, gated strictly
+# on a clean Inspector PASS, and never destructive. Default None ⇒ unchanged.
+
+def _stub_mission(monkeypatch, *, verdict="PASS", delivered="HERO ASSET", residual=False):
+    """Stub run_mission_cli to return a fixed dossier and store.save to a no-op.
+    new_mission_id / canonical_project_root run real (pure). Returns a `captured`
+    dict recording the asset_clause the bridge forwarded to the engine. The dossier
+    is a fresh SHALLOW copy per call — safe because these tests only mutate top-level
+    keys (a test that mutated a nested list would need a deepcopy)."""
+    base = {
+        "goal": "launch a brand",
+        "route": ["marketing"],
+        "context": None,
+        "dept_outputs": {"marketing": "m-out"},
+        "decisions": [], "sources": [], "open_to_verify": [],
+        "direction_check": None,
+        "verdicts": [{"engine": "claude-code", "verdict": verdict, "iteration": 1}],
+        "iteration": 1,
+        "delivered": delivered,
+    }
+    if residual:
+        base["residual_risk"] = "did not PASS"
+
+    captured = {"asset_clause": "<unset>"}
+
+    def _fake_run(goal, engine="claude-code", on_event=None, should_cancel=None, asset_clause=None):
+        captured["asset_clause"] = asset_clause
+        return dict(base)  # a fresh copy per call
+
+    monkeypatch.setattr("agency_cli.engines.cli_engine.run_mission_cli", _fake_run)
+    monkeypatch.setattr("agency_kit.store.save", lambda *a, **k: None)
+    return captured
+
+
+def test_render_assets_runs_on_pass_and_manifest_is_persisted(tmp_path, monkeypatch):
+    from agency_cli import runner_bridge
+    _stub_mission(monkeypatch, verdict="PASS", delivered="HERO ASSET here")
+
+    seen = {}
+
+    def _render(dossier):
+        # mission_id must already be set so the renderer can scope its output dir.
+        seen["mission_id"] = dossier.get("mission_id")
+        dossier["assets"] = [{
+            "type": "image", "status": "ok",
+            "url": "/media/missions/x/images/a.png", "model": "flux-schnell", "seconds": 3,
+        }]
+        dossier["delivered"] = dossier["delivered"].replace("ASSET", "![a](/media/missions/x/images/a.png)")
+
+    res = runner_bridge.run("launch a brand", project_root=str(tmp_path), render_assets=_render)
+
+    assert seen.get("mission_id"), "render_assets must see a mission_id already stamped"
+    assert res.dossier.get("assets"), "manifest must be attached to the returned dossier"
+    md = (res.path / "dossier.md").read_text(encoding="utf-8")
+    assert "## Assets" in md and "/media/missions/x/images/a.png" in md
+    # The cosmetic rewrite happened before serialization → the persisted deliverable carries it.
+    deliv = (res.path / "deliverable.md").read_text(encoding="utf-8")
+    assert "![a](/media/missions/x/images/a.png)" in deliv
+
+
+def test_render_assets_skipped_when_not_pass(tmp_path, monkeypatch):
+    # A VETO at the cap still returns a populated `delivered` (+ residual_risk), but the
+    # strict == 'PASS' gate must NOT render — and the deliverable is still persisted.
+    from agency_cli import runner_bridge
+    _stub_mission(monkeypatch, verdict="VETO", residual=True)
+
+    calls = []
+    res = runner_bridge.run(
+        "launch a brand", project_root=str(tmp_path),
+        render_assets=lambda d: calls.append(1),
+    )
+    assert calls == [], "render_assets must not run on a non-PASS verdict"
+    assert "assets" not in res.dossier
+    assert (res.path / "deliverable.md").is_file(), "deliverable persists even when assets are skipped"
+
+
+def test_render_assets_pass_with_fixes_is_not_a_pass(tmp_path, monkeypatch):
+    # Exact-token gate: PASS-WITH-FIXES is not a clean PASS → no render.
+    from agency_cli import runner_bridge
+    _stub_mission(monkeypatch, verdict="PASS-WITH-FIXES")
+    calls = []
+    runner_bridge.run(
+        "launch a brand", project_root=str(tmp_path),
+        render_assets=lambda d: calls.append(1),
+    )
+    assert calls == [], "PASS-WITH-FIXES must not trigger asset rendering"
+
+
+@pytest.mark.parametrize("exc", [
+    ImportError("media extra not installed"),    # MediaUnavailable ⊂ ImportError ([media] absent)
+    RuntimeError("metal command buffer crashed"),  # a backend/Metal crash mid-render
+])
+def test_render_assets_failure_never_discards_the_deliverable(tmp_path, monkeypatch, exc):
+    # Best-effort: ANY render exception is swallowed by the broad `except Exception`, so
+    # the already-inspected PASS deliverable is still persisted, UNMODIFIED and without a
+    # manifest. Covering both ImportError and RuntimeError pins the broad catch — a future
+    # narrowing to `except ImportError` would make the RuntimeError case fail loudly.
+    from agency_cli import runner_bridge
+    _stub_mission(monkeypatch, verdict="PASS", delivered="HERO ASSET here")
+
+    def _boom(dossier):
+        raise exc
+
+    res = runner_bridge.run("launch a brand", project_root=str(tmp_path), render_assets=_boom)
+
+    assert "assets" not in res.dossier
+    assert (res.path / "dossier.md").is_file()
+    deliv = (res.path / "deliverable.md").read_text(encoding="utf-8")
+    assert "HERO ASSET here" in deliv, "the deliverable must survive a render failure unmutated"
+
+
+def test_asset_clause_is_threaded_to_the_engine(tmp_path, monkeypatch):
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path), asset_clause="ASSET CLAUSE")
+    assert captured["asset_clause"] == "ASSET CLAUSE"
+
+
+def test_default_run_forwards_no_clause_and_renders_nothing(tmp_path, monkeypatch):
+    # Standalone path: no hook supplied ⇒ asset_clause stays None, no asset section.
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    res = runner_bridge.run("launch a brand", project_root=str(tmp_path))
+    assert captured["asset_clause"] is None
+    assert "assets" not in res.dossier
+    assert "## Assets" not in (res.path / "dossier.md").read_text(encoding="utf-8")
+
+
+def test_resume_forwards_the_multimodal_hook(tmp_path, monkeypatch):
+    # resume() regenerates assets under its fresh mission id exactly like a first run.
+    from agency_cli import runner_bridge
+    _stub_mission(monkeypatch, verdict="PASS")
+    monkeypatch.setattr("agency_kit.store.load", lambda mid: {"goal": "launch a brand"})
+
+    calls = []
+
+    def _render(dossier):
+        calls.append(1)
+        dossier["assets"] = [{"type": "tts", "status": "ok"}]
+
+    res = runner_bridge.resume("001-old", project_root=str(tmp_path), render_assets=_render)
+    assert calls == [1], "resume must forward render_assets to _run_and_persist"
+    assert res.dossier.get("assets")
+
+
+def test_dossier_md_assets_section_only_when_present():
+    from agency_cli.runner_bridge import _dossier_md
+    base = {
+        "goal": "g", "route": ["marketing"], "context": None, "iteration": 1,
+        "direction_check": None, "dept_outputs": {"marketing": "m"},
+        "decisions": [], "sources": [], "open_to_verify": [], "verdicts": [],
+    }
+    md_absent = _dossier_md("001", base)
+    assert "## Assets" not in md_absent
+    # None / [] render nothing → byte-identical to the absent case (non-studio runs).
+    assert _dossier_md("001", {**base, "assets": None}) == md_absent
+    assert _dossier_md("001", {**base, "assets": []}) == md_absent
+    # Present → a readable line per manifest entry.
+    md = _dossier_md("001", {**base, "assets": [
+        {"type": "tts", "status": "ok", "url": "/media/a.wav", "seconds": 2},
+        {"type": "image", "status": "failed", "reason": "metal crash"},
+    ]})
+    assert "## Assets" in md
+    assert "tts [ok] /media/a.wav (2s)" in md
+    assert "image [failed] metal crash" in md
+
+
 # ---- integrations._install_claude -------------------------------------------
 # Bug: sources["skills"].iterdir() called unconditionally; agency-kit has no
 # skills/ directory, so `agency init --agent claude` raised FileNotFoundError.
