@@ -64,6 +64,27 @@ def _dossier_md(mission_id: str, d: dict) -> str:
         lines.append(f"- {json.dumps(v, ensure_ascii=False)}")
     if d.get("residual_risk"):
         lines.append(f"\n## Residual risk\n{d['residual_risk']}")
+    # Studio multimodal addendum. Keyed on `assets` so a non-studio run (the key is
+    # absent) is byte-identical to the pre-Wave-3 output. Each entry is a render
+    # manifest dict ({type, status, url|reason, model, seconds}); a non-dict entry
+    # falls back to a JSON line, mirroring the Verdicts section.
+    assets = d.get("assets")
+    if assets:
+        lines.append("\n## Assets")
+        for a in assets if isinstance(assets, list) else [assets]:
+            if isinstance(a, dict):
+                ref = a.get("url") or a.get("reason") or ""
+                meta = []
+                if a.get("model"):
+                    meta.append(str(a["model"]))
+                if a.get("seconds") is not None:
+                    meta.append(f"{a['seconds']}s")
+                suffix = f" ({', '.join(meta)})" if meta else ""
+                lines.append(
+                    f"- {a.get('type', 'asset')} [{a.get('status', '?')}] {ref}{suffix}".rstrip()
+                )
+            else:
+                lines.append(f"- {json.dumps(a, ensure_ascii=False)}")
     return "\n".join(lines) + "\n"
 
 
@@ -100,6 +121,8 @@ def _run_and_persist(
     engine: str,
     on_event: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    asset_clause: Optional[str] = None,
+    render_assets: Optional[Callable[[dict], None]] = None,
 ) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
@@ -112,14 +135,40 @@ def _run_and_persist(
     `should_cancel` is an optional cooperative-cancel predicate. When it fires,
     `run_mission_cli` raises `MissionCancelled` BEFORE returning — so the store.save
     and serialize_dossier below never run, and a cancelled mission leaves no trace.
+
+    `asset_clause` / `render_assets` are the Studio's multimodal hook (default None
+    ⇒ unchanged). `asset_clause` is threaded to `run_mission_cli` (it lets a
+    department/synthesis emit fenced `asset` markers). `render_assets` is invoked
+    AFTER the engine returns but BEFORE persistence, so both the store copy and the
+    serialized missions/<id>/ copy carry the manifest it writes into
+    `dossier['assets']` (and the cosmetic rewrite it makes to `dossier['delivered']`).
+    It is gated strictly on a clean Inspector PASS and is best-effort.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
-    dossier = run_mission_cli(goal, engine=engine, on_event=on_event, should_cancel=should_cancel)
+    dossier = run_mission_cli(
+        goal,
+        engine=engine,
+        on_event=on_event,
+        should_cancel=should_cancel,
+        asset_clause=asset_clause,
+    )
     dossier["mission_id"] = store.new_mission_id(goal)
     # Stamp the canonical project root so store.list_missions can scope history to
     # this project (the Studio GUI launched with --path), not the global store.
     dossier["project_root"] = store.canonical_project_root(project_root)
+    # Best-effort multimodal render. Gate on the EXACT 'PASS' token: a VETO at the
+    # iteration cap still returns a populated `delivered` (with residual_risk), and
+    # an unrecognized verdict breaks the loop with neither a PASS nor residual_risk —
+    # so `_last_verdict(dossier) == 'PASS'` is the only correct gate (never "no
+    # residual_risk"). mission_id is already set so the renderer can scope its output
+    # dir. Never destructive: any failure (MediaUnavailable when [media] is absent, a
+    # Metal crash) is swallowed so the already-inspected deliverable is still persisted.
+    if render_assets is not None and _last_verdict(dossier) == "PASS":
+        try:
+            render_assets(dossier)
+        except Exception:
+            pass
     store.save(dossier)
     path = serialize_dossier(dossier, Path(project_root))
     return MissionResult(path=path, dossier=dossier)
@@ -131,6 +180,8 @@ def run(
     engine: str = "claude-code",
     on_event: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    asset_clause: Optional[str] = None,
+    render_assets: Optional[Callable[[dict], None]] = None,
 ) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
@@ -145,9 +196,16 @@ def run(
     `should_cancel` is an optional cooperative-cancel predicate polled at phase
     boundaries; if it fires the mission stops and nothing is persisted.
 
+    `asset_clause` / `render_assets` are the Studio's optional multimodal hook (see
+    `_run_and_persist`); default None ⇒ unchanged behaviour.
+
     Returns a MissionResult (path + dossier) so callers can read the real verdict.
     """
-    return _run_and_persist(goal, project_root, engine, on_event=on_event, should_cancel=should_cancel)
+    return _run_and_persist(
+        goal, project_root, engine,
+        on_event=on_event, should_cancel=should_cancel,
+        asset_clause=asset_clause, render_assets=render_assets,
+    )
 
 
 def resume(
@@ -156,14 +214,22 @@ def resume(
     engine: str = "claude-code",
     on_event: Optional[Callable[[dict], None]] = None,
     should_cancel: Optional[Callable[[], bool]] = None,
+    asset_clause: Optional[str] = None,
+    render_assets: Optional[Callable[[dict], None]] = None,
 ) -> MissionResult:
     """Re-run a saved mission's goal through the engine.
 
     The engine is single-shot (no quota checkpoint), so 'resume' loads the saved
     dossier, takes its goal, and re-runs it — producing a fresh result that is
-    persisted to the store and serialized identically to run().
+    persisted to the store and serialized identically to run(). The multimodal hook
+    (`asset_clause` / `render_assets`) is forwarded too, so a resumed mission
+    regenerates assets under its fresh mission id exactly as a first run would.
     """
     from agency_kit import store
     saved = store.load(mission_id)
     goal = saved.get("goal", "")
-    return _run_and_persist(goal, project_root, engine, on_event=on_event, should_cancel=should_cancel)
+    return _run_and_persist(
+        goal, project_root, engine,
+        on_event=on_event, should_cancel=should_cancel,
+        asset_clause=asset_clause, render_assets=render_assets,
+    )

@@ -6,15 +6,33 @@ Optional dependency: `pip install -e "[pdf]"`.
 Strips the YAML front-matter added by store.save() before converting to HTML.
 """
 
-import sys
+import re
 from pathlib import Path
 
+# Wave 3 — markdown image/link forms `assets.rewrite_delivered` emits for a rendered
+# asset: `![caption](/media/<rel>)` (image embed) and `[label](/media/<rel>)` (audio
+# link). The `/media/<rel>` URL is a Studio *server route*, not an on-disk path, so a
+# PDF render orphans it unless we resolve it back to the file under the assets root.
+_MEDIA_IMG = re.compile(r"!\[([^\]]*)\]\((/media/[^)\s]+)\)")
+_MEDIA_LINK = re.compile(r"\[([^\]]*)\]\((/media/[^)\s]+)\)")
+_MEDIA_PREFIX = "/media/"
 
-def export_pdf(mission_id: str) -> Path:
+
+def export_pdf(mission_id: str, assets_root=None) -> Path:
     """Convert ~/.agency/missions/<mission_id>/deliverable.md to PDF.
 
     Returns the path to the generated PDF. Raises FileNotFoundError if the
     deliverable doesn't exist, ImportError if WeasyPrint/Markdown aren't installed.
+
+    ``assets_root`` (Studio only) is the directory the ``/media`` route serves from
+    (``<project>/studio_assets``). When given, any ``/media/<rel>`` reference in the
+    deliverable is resolved to its on-disk file so generated images embed in the PDF
+    (audio becomes a caption — a PDF can't play sound), and WeasyPrint is locked to a
+    url_fetcher that only loads ``file://`` resources inside that root — so a raw
+    ``![x](file:///etc/passwd)`` / ``<img src=http://…>`` in the (partly untrusted)
+    deliverable can't pull arbitrary local files or make outbound requests during render.
+    Defaults to None ⇒ the call is byte-identical to standalone agency-kit (no asset
+    rewriting, no base_url, default fetcher).
     """
     try:
         import weasyprint
@@ -33,13 +51,90 @@ def export_pdf(mission_id: str) -> Path:
         raise FileNotFoundError(f"deliverable.md not found for mission: {mission_id}")
 
     content = strip_frontmatter(md_path.read_text(encoding="utf-8"))
+    if assets_root is not None:
+        content = _localize_assets(content, Path(assets_root))
 
     html_body = _md.markdown(content, extensions=["tables", "fenced_code"])
     html = _wrap_html(html_body)
 
     out = md_path.parent / "deliverable.pdf"
-    weasyprint.HTML(string=html).write_pdf(str(out))
+    if assets_root is not None:
+        # Localized assets are already absolute file:// URIs (no base_url needed); the
+        # fetcher confines every resource load to the asset root, closing the file://
+        # disclosure + http(s) SSRF surface on the untrusted deliverable text.
+        html_obj = weasyprint.HTML(string=html, url_fetcher=_asset_only_fetcher(Path(assets_root).resolve()))
+    else:
+        html_obj = weasyprint.HTML(string=html)  # standalone: byte-identical to pre-Wave-3
+    html_obj.write_pdf(str(out))
     return out
+
+
+def _asset_only_fetcher(root: Path):
+    """A WeasyPrint ``url_fetcher`` that permits ONLY ``file://`` URLs resolving inside
+    ``root`` (the localized assets, already vetted by ``_localize_assets``). Every other
+    scheme/host — an ``http(s)`` SSRF/beacon, or a ``file://`` to an arbitrary local file
+    spliced into the untrusted deliverable via raw markdown — is refused, so rendering an
+    attacker-influenced deliverable can't read outside the asset root or reach the network.
+    """
+    from urllib.parse import unquote, urlparse
+
+    def _fetch(url: str):
+        parsed = urlparse(url)
+        if parsed.scheme != "file":
+            raise ValueError(f"PDF render blocked a non-file resource URL: {parsed.scheme}:")
+        try:
+            resolved = Path(unquote(parsed.path)).resolve()
+            resolved.relative_to(root)
+        except (ValueError, OSError):
+            raise ValueError("PDF render blocked a file URL outside the asset root")
+        import weasyprint  # only reached once the URL is vetted in-root
+        return weasyprint.default_url_fetcher(url)
+
+    return _fetch
+
+
+def _localize_assets(content: str, assets_root: Path) -> str:
+    """Rewrite ``/media/<rel>`` references so a PDF render can resolve them.
+
+    Images become absolute ``file://`` URIs (WeasyPrint rasterizes them into the PDF);
+    audio links become a plain ``label — filename`` caption, since a PDF can't play
+    sound. A reference that escapes ``assets_root`` or points at a missing file is
+    dropped to its caption text rather than left as a broken/dangling link. Pure: no
+    writes, never raises on a malformed reference.
+    """
+    try:
+        root = assets_root.resolve()
+    except OSError:
+        return content
+
+    def _on_disk(url: str):
+        """Resolve a ``/media/<rel>`` URL to its file under ``root``, or None if it
+        escapes the root or doesn't exist (defence in depth, though the refs are ours)."""
+        rel = url[len(_MEDIA_PREFIX):]
+        try:
+            target = (root / rel).resolve()
+            target.relative_to(root)
+        except (ValueError, OSError):
+            return None
+        return target if target.is_file() else None
+
+    def _image(match: "re.Match") -> str:
+        caption, url = match.group(1), match.group(2)
+        target = _on_disk(url)
+        # Drop a broken embed to its caption so the PDF shows text, not a missing-image box.
+        return f"![{caption}]({target.as_uri()})" if target else caption
+
+    content = _MEDIA_IMG.sub(_image, content)
+
+    def _link(match: "re.Match") -> str:
+        label, url = match.group(1), match.group(2)
+        target = _on_disk(url)
+        name = target.name if target else url.rsplit("/", 1)[-1]
+        return f"{label} — {name}"
+
+    # Image embeds were already rewritten above (their URLs are now file://, so this
+    # /media-only link pass leaves them untouched and only catches the audio links).
+    return _MEDIA_LINK.sub(_link, content)
 
 
 def _wrap_html(body: str) -> str:

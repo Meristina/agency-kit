@@ -327,3 +327,99 @@ def test_should_cancel_false_runs_to_completion(monkeypatch):
     assert set(dossier["dept_outputs"]) == {"solve", "product"}
     assert dossier["delivered"]
     assert dossier["verdicts"]
+
+
+# ── asset_clause (Wave 3 D1 — additive, default-None, byte-identical) ────────
+#
+# The studio may append a generic asset-capability clause to the department and
+# synthesis prompts so a department/synthesis can emit fenced `asset` markers.
+# The contract mirrors on_event/should_cancel: default None ⇒ byte-identical to
+# standalone agency-kit, and the clause is NEVER shown to the router or inspector
+# (those see the unmodified goal).
+
+ASSET_CLAUSE = "ASSET CAPABILITY: you may embed one fenced ```asset JSON block."
+
+
+def test_dept_prompt_byte_identical_without_clause():
+    # The new param defaults to None → identical to the pre-Wave-3 no-arg prompt.
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    assert base == cli_engine._dept_prompt("marketing", "launch a brand", {}, asset_clause=None)
+
+
+def test_dept_prompt_appends_clause_verbatim_only_when_set():
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    withc = cli_engine._dept_prompt("marketing", "launch a brand", {}, asset_clause=ASSET_CLAUSE)
+    # Clause appended verbatim at the very end; the delta is exact, nothing else moves.
+    assert withc == base + "\n\n" + ASSET_CLAUSE
+
+
+def test_dept_prompt_empty_clause_is_noop():
+    # A falsy clause ("") must not append a trailing separator → byte-identical.
+    base = cli_engine._dept_prompt("solve", "fix it", {})
+    assert cli_engine._dept_prompt("solve", "fix it", {}, asset_clause="") == base
+
+
+def test_synth_prompt_byte_identical_without_clause():
+    base = cli_engine._synth_prompt("g", ["marketing"], {})
+    assert base == cli_engine._synth_prompt("g", ["marketing"], {}, asset_clause=None)
+
+
+def test_synth_prompt_appends_clause_verbatim_only_when_set():
+    base = cli_engine._synth_prompt("g", ["marketing"], {})
+    withc = cli_engine._synth_prompt("g", ["marketing"], {}, asset_clause=ASSET_CLAUSE)
+    assert withc == base + "\n\n" + ASSET_CLAUSE
+
+
+def test_synth_prompt_clause_composes_with_fixes():
+    # The fixes block (veto loop) and asset_clause are independent; clause stays last,
+    # so the veto-loop logic the Inspector depends on is untouched (Art. IX).
+    base = cli_engine._synth_prompt("g", ["marketing"], {}, fixes="resolve X")
+    withc = cli_engine._synth_prompt(
+        "g", ["marketing"], {}, fixes="resolve X", asset_clause=ASSET_CLAUSE
+    )
+    assert withc == base + "\n\n" + ASSET_CLAUSE
+    assert "resolve X" in withc
+
+
+def _capture_prompts_engine(monkeypatch):
+    """Stub _call to record every prompt and return canned, marker-keyed output."""
+    monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
+    prompts = []
+
+    def _call(cmd, prompt, timeout=900, should_cancel=None):
+        prompts.append(prompt)
+        low = prompt.lower()
+        if "json array" in low:
+            return '["marketing"]'
+        if "issue a verdict" in low:
+            return "VERDICT: PASS"
+        return "DELIVERED OUTPUT"
+
+    monkeypatch.setattr(cli_engine, "_call", _call)
+    return prompts
+
+
+def test_run_mission_cli_threads_clause_to_dept_and_synth_only(monkeypatch):
+    prompts = _capture_prompts_engine(monkeypatch)
+    cli_engine.run_mission_cli("launch a brand", asset_clause=ASSET_CLAUSE)
+    # Classify by the same stable prompt markers _scripted_engine keys off, so the
+    # buckets are collapse-proof by construction (not value-exclusion of one another).
+    route = [p for p in prompts if "json array" in p.lower()]
+    inspect = [p for p in prompts if "issue a verdict" in p.lower()]
+    dept_synth = [
+        p for p in prompts
+        if "json array" not in p.lower() and "issue a verdict" not in p.lower()
+    ]
+    assert route and inspect and dept_synth
+    # Clause reaches the department + synthesis prompts...
+    assert all(ASSET_CLAUSE in p for p in dept_synth)
+    # ...but never the router or the inspector — they see the unmodified goal.
+    assert all(ASSET_CLAUSE not in p for p in route)
+    assert all(ASSET_CLAUSE not in p for p in inspect)
+
+
+def test_run_mission_cli_default_none_appends_no_clause(monkeypatch):
+    # Standalone path: no clause set ⇒ it appears in NO prompt (byte-identical run).
+    prompts = _capture_prompts_engine(monkeypatch)
+    cli_engine.run_mission_cli("launch a brand")
+    assert all(ASSET_CLAUSE not in p for p in prompts)
