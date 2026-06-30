@@ -53,6 +53,28 @@ def test_dossier_md_lists_departments_run():
     assert "product" in md and "marketing" in md, "dept_outputs keys not rendered in dossier MD"
 
 
+def test_serialize_dossier_retries_past_a_colliding_folder(tmp_path, monkeypatch):
+    # TOCTOU guard: a real collision only happens when a concurrent mission claims
+    # the NNN that _next_id() just computed. Simulate it by pinning _next_id to "001"
+    # for the first (colliding) attempt, then "002" — the retry loop must recover.
+    from agency_cli import runner_bridge
+    from agency_kit.store import slug as _slug
+
+    goal = "diagnose the outage"
+    missions = tmp_path / "missions"
+    missions.mkdir()
+    (missions / f"001-{_slug(goal, max_words=6)}").mkdir()  # already claimed
+
+    ids = iter(["001", "002"])
+    monkeypatch.setattr(runner_bridge, "_next_id", lambda _m: next(ids))
+
+    out = runner_bridge.serialize_dossier({"goal": goal, "delivered": "fix"}, tmp_path)
+
+    assert out.name.startswith("002-")  # recovered onto the next free id
+    assert (out / "dossier.md").is_file()
+    assert (out / "deliverable.md").is_file()
+
+
 # ---- integrations._install_claude -------------------------------------------
 # Bug: sources["skills"].iterdir() called unconditionally; agency-kit has no
 # skills/ directory, so `agency init --agent claude` raised FileNotFoundError.
