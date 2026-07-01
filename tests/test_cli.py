@@ -120,10 +120,12 @@ def _stub_mission(monkeypatch, *, verdict="PASS", delivered="HERO ASSET", residu
     if residual:
         base["residual_risk"] = "did not PASS"
 
-    captured = {"asset_clause": "<unset>"}
+    captured = {"asset_clause": "<unset>", "context_clause": "<unset>"}
 
-    def _fake_run(goal, engine="claude-code", on_event=None, should_cancel=None, asset_clause=None):
+    def _fake_run(goal, engine="claude-code", on_event=None, should_cancel=None,
+                  asset_clause=None, context_clause=None):
         captured["asset_clause"] = asset_clause
+        captured["context_clause"] = context_clause
         return dict(base)  # a fresh copy per call
 
     monkeypatch.setattr("agency_cli.engines.cli_engine.run_mission_cli", _fake_run)
@@ -223,6 +225,21 @@ def test_default_run_forwards_no_clause_and_renders_nothing(tmp_path, monkeypatc
     assert captured["asset_clause"] is None
     assert "assets" not in res.dossier
     assert "## Assets" not in (res.path / "dossier.md").read_text(encoding="utf-8")
+
+
+def test_context_clause_is_threaded_to_the_engine(tmp_path, monkeypatch):
+    # Wave 4 D2: the RAG context_clause reaches run_mission_cli through the bridge.
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path), context_clause="CTX")
+    assert captured["context_clause"] == "CTX"
+
+
+def test_default_run_forwards_no_context_clause(tmp_path, monkeypatch):
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path))
+    assert captured["context_clause"] is None
 
 
 def test_resume_forwards_the_multimodal_hook(tmp_path, monkeypatch):

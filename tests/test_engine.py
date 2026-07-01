@@ -448,3 +448,76 @@ def test_run_mission_cli_default_none_appends_no_clause(monkeypatch):
     prompts = _capture_prompts_engine(monkeypatch)
     cli_engine.run_mission_cli("launch a brand")
     assert all(ASSET_CLAUSE not in p for p in prompts)
+
+
+# ── context_clause (Wave 4 D1 — additive, default-None, byte-identical) ──────
+#
+# The studio's RAG hook appends sourced excerpts from the user's uploaded documents
+# to the department + synthesis prompts. Same contract as asset_clause: default None
+# ⇒ byte-identical to standalone agency-kit, and the clause is NEVER shown to the
+# router or inspector (those see the unmodified goal).
+
+CONTEXT_CLAUSE = "REFERENCE DOCUMENTS:\n[1] Solar Basics\nPanels convert sunlight."
+
+
+def test_dept_prompt_byte_identical_without_context_clause():
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    assert base == cli_engine._dept_prompt("marketing", "launch a brand", {}, context_clause=None)
+
+
+def test_dept_prompt_appends_context_clause_verbatim_only_when_set():
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    withc = cli_engine._dept_prompt("marketing", "launch a brand", {}, context_clause=CONTEXT_CLAUSE)
+    assert withc == base + "\n\n" + CONTEXT_CLAUSE
+
+
+def test_dept_prompt_empty_context_clause_is_noop():
+    base = cli_engine._dept_prompt("solve", "fix it", {})
+    assert cli_engine._dept_prompt("solve", "fix it", {}, context_clause="") == base
+
+
+def test_synth_prompt_byte_identical_without_context_clause():
+    base = cli_engine._synth_prompt("g", ["marketing"], {})
+    assert base == cli_engine._synth_prompt("g", ["marketing"], {}, context_clause=None)
+
+
+def test_context_and_asset_clauses_compose_in_order():
+    # Both hooks may be set at once. context_clause is appended first, then asset_clause,
+    # so the two are independent and the deltas are exact (nothing else moves).
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    both = cli_engine._dept_prompt(
+        "marketing", "launch a brand", {},
+        asset_clause=ASSET_CLAUSE, context_clause=CONTEXT_CLAUSE,
+    )
+    assert both == base + "\n\n" + CONTEXT_CLAUSE + "\n\n" + ASSET_CLAUSE
+
+
+def test_synth_context_clause_composes_with_fixes():
+    # The veto-loop fixes block and context_clause are independent (Art. IX untouched).
+    base = cli_engine._synth_prompt("g", ["marketing"], {}, fixes="resolve X")
+    withc = cli_engine._synth_prompt(
+        "g", ["marketing"], {}, fixes="resolve X", context_clause=CONTEXT_CLAUSE
+    )
+    assert withc == base + "\n\n" + CONTEXT_CLAUSE
+    assert "resolve X" in withc
+
+
+def test_run_mission_cli_threads_context_clause_to_dept_and_synth_only(monkeypatch):
+    prompts = _capture_prompts_engine(monkeypatch)
+    cli_engine.run_mission_cli("launch a brand", context_clause=CONTEXT_CLAUSE)
+    route = [p for p in prompts if "json array" in p.lower()]
+    inspect = [p for p in prompts if "issue a verdict" in p.lower()]
+    dept_synth = [
+        p for p in prompts
+        if "json array" not in p.lower() and "issue a verdict" not in p.lower()
+    ]
+    assert route and inspect and dept_synth
+    assert all(CONTEXT_CLAUSE in p for p in dept_synth)   # reaches dept + synthesis...
+    assert all(CONTEXT_CLAUSE not in p for p in route)    # ...never the router...
+    assert all(CONTEXT_CLAUSE not in p for p in inspect)  # ...never the inspector
+
+
+def test_run_mission_cli_default_none_appends_no_context_clause(monkeypatch):
+    prompts = _capture_prompts_engine(monkeypatch)
+    cli_engine.run_mission_cli("launch a brand")
+    assert all(CONTEXT_CLAUSE not in p for p in prompts)
