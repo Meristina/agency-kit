@@ -121,15 +121,18 @@ def _stub_mission(monkeypatch, *, verdict="PASS", delivered="HERO ASSET", residu
         base["residual_risk"] = "did not PASS"
 
     captured = {"asset_clause": "<unset>", "context_clause": "<unset>",
-                "mcp_config_path": "<unset>", "mcp_allowed_tools": "<unset>"}
+                "mcp_config_path": "<unset>", "mcp_allowed_tools": "<unset>",
+                "persona_doctrine": "<unset>"}
 
     def _fake_run(goal, engine="claude-code", on_event=None, should_cancel=None,
                   asset_clause=None, context_clause=None,
-                  mcp_config_path=None, mcp_allowed_tools=None):
+                  mcp_config_path=None, mcp_allowed_tools=None,
+                  persona_doctrine=None):
         captured["asset_clause"] = asset_clause
         captured["context_clause"] = context_clause
         captured["mcp_config_path"] = mcp_config_path
         captured["mcp_allowed_tools"] = mcp_allowed_tools
+        captured["persona_doctrine"] = persona_doctrine
         return dict(base)  # a fresh copy per call
 
     monkeypatch.setattr("agency_cli.engines.cli_engine.run_mission_cli", _fake_run)
@@ -264,6 +267,22 @@ def test_default_run_forwards_no_mcp_tool_hook(tmp_path, monkeypatch):
     assert captured["mcp_allowed_tools"] is None
 
 
+def test_persona_hook_is_threaded_to_the_engine(tmp_path, monkeypatch):
+    # Wave 6: the persona-doctrine hook reaches run_mission_cli through the bridge.
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path),
+                      persona_doctrine={"marketing": "You are a razor-focused growth marketer."})
+    assert captured["persona_doctrine"] == {"marketing": "You are a razor-focused growth marketer."}
+
+
+def test_default_run_forwards_no_persona_hook(tmp_path, monkeypatch):
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path))
+    assert captured["persona_doctrine"] is None
+
+
 def test_resume_forwards_the_multimodal_hook(tmp_path, monkeypatch):
     # resume() regenerates assets under its fresh mission id exactly like a first run.
     from agency_cli import runner_bridge
@@ -279,6 +298,16 @@ def test_resume_forwards_the_multimodal_hook(tmp_path, monkeypatch):
     res = runner_bridge.resume("001-old", project_root=str(tmp_path), render_assets=_render)
     assert calls == [1], "resume must forward render_assets to _run_and_persist"
     assert res.dossier.get("assets")
+
+
+def test_resume_forwards_the_persona_hook(tmp_path, monkeypatch):
+    # resume() threads persona_doctrine through _run_and_persist → run_mission_cli, like run().
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    monkeypatch.setattr("agency_kit.store.load", lambda mid: {"goal": "launch a brand"})
+    runner_bridge.resume("001-old", project_root=str(tmp_path),
+                         persona_doctrine={"commander": "You are a decisive agency chief."})
+    assert captured["persona_doctrine"] == {"commander": "You are a decisive agency chief."}
 
 
 def test_dossier_md_assets_section_only_when_present():

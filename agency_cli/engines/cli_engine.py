@@ -324,13 +324,16 @@ def _fmt_dept_outputs(dept_outputs: dict) -> str:
 def _dept_prompt(
     dept: str, goal: str, dept_outputs: dict,
     asset_clause: Optional[str] = None, context_clause: Optional[str] = None,
+    persona_doctrine: Optional[dict] = None,
 ) -> str:
     shared = _load(f"_shared-{dept}")
+    persona = (persona_doctrine or {}).get(dept)
+    doctrine = "\n\n".join(p for p in (shared, persona) if p)
     return (
         f"You are the {dept} department commander for an AI agency.\n\n"
         f"MISSION GOAL:\n{goal}\n\n"
         f"PRIOR DEPARTMENT OUTPUTS:\n{_fmt_dept_outputs(dept_outputs)}\n\n"
-        + (f"DEPARTMENT DOCTRINE:\n{shared}\n\n" if shared else "")
+        + (f"DEPARTMENT DOCTRINE:\n{doctrine}\n\n" if doctrine else "")
         + "Produce a complete, detailed deliverable for this department.\n"
         "CRITICAL: Use WebSearch to find current, real data (today's date, live sources). "
         "Never invent statistics, market sizes, or citations. "
@@ -347,8 +350,11 @@ def _synth_prompt(
     fixes: str = None,
     asset_clause: Optional[str] = None,
     context_clause: Optional[str] = None,
+    persona_doctrine: Optional[dict] = None,
 ) -> str:
     commander_doc = _load("commander-agency")
+    persona = (persona_doctrine or {}).get("commander")
+    commander_doc = "\n\n".join(p for p in (commander_doc, persona) if p)
     fixes_block = (
         "PREVIOUS INSPECTOR FINDINGS — the prior synthesis did NOT pass; resolve every "
         f"item before re-presenting:\n{fixes}\n\n" if fixes else ""
@@ -432,6 +438,7 @@ def run_mission_cli(
     context_clause: Optional[str] = None,
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
+    persona_doctrine: Optional[dict] = None,
 ) -> dict:
     """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
 
@@ -476,6 +483,15 @@ def run_mission_cli(
     router or the inspector (which stay on the base command, exactly like ``context_clause``
     is withheld from the inspector, so the Art. IX quality gate is unchanged). Default None ⇒
     the command is byte-identical to standalone agency-kit; a non-claude engine ignores them.
+
+    ``persona_doctrine`` is the studio's Wave-6 persona-doctrine hook: a dict keyed by
+    department name (a ``DEPT_NAMES`` key, plus the reserved ``"commander"`` key for the
+    synthesis) → a curated persona doctrine string. Unlike ``mcp_config_path`` (a CLI-arg
+    splice) this augments the PROMPT TEXT — each dept's persona is woven into that dept's
+    DEPARTMENT DOCTRINE block, and the ``"commander"`` persona into the synthesis commander
+    doctrine. Like ``context_clause`` it reaches the DEPARTMENT and SYNTHESIS prompts only —
+    NOT the router or inspector — so the Art. IX gate's inputs are unchanged. Default None (or
+    a dict lacking a given key) ⇒ that prompt is byte-identical to standalone agency-kit.
     """
     cmd = ENGINES.get(engine)
     if cmd is None:
@@ -503,7 +519,8 @@ def run_mission_cli(
         dept_outputs[dept] = _call(
             exec_cmd,
             _dept_prompt(dept, goal, dept_outputs, asset_clause=asset_clause,
-                         context_clause=context_clause),
+                         context_clause=context_clause,
+                         persona_doctrine=persona_doctrine),
             should_cancel=should_cancel,
         )
         print("done", flush=True)
@@ -522,7 +539,8 @@ def run_mission_cli(
         delivered = _call(
             exec_cmd,
             _synth_prompt(goal, route, dept_outputs, fixes, asset_clause=asset_clause,
-                          context_clause=context_clause),
+                          context_clause=context_clause,
+                          persona_doctrine=persona_doctrine),
             should_cancel=should_cancel,
         )
         print("done", flush=True)

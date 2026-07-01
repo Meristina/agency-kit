@@ -126,6 +126,7 @@ def _run_and_persist(
     context_clause: Optional[str] = None,
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
+    persona_doctrine: Optional[dict] = None,
 ) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
@@ -155,6 +156,11 @@ def _run_and_persist(
     a `--mcp-config` file (built from the user's MCP servers) and the `mcp__*` tools to allow,
     threaded to `run_mission_cli` so departments + synthesis can invoke those tools. Default
     None ⇒ unchanged; same additive contract as `context_clause`.
+
+    `persona_doctrine` is the Studio's Wave-6 persona-doctrine hook — a dict keyed by
+    department (+ the reserved `"commander"` key) → a curated persona string, threaded to
+    `run_mission_cli` where it augments the DEPARTMENT DOCTRINE (departments) and commander
+    doctrine (synthesis) prompt text only. Default None ⇒ unchanged; same additive contract.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
@@ -167,6 +173,7 @@ def _run_and_persist(
         context_clause=context_clause,
         mcp_config_path=mcp_config_path,
         mcp_allowed_tools=mcp_allowed_tools,
+        persona_doctrine=persona_doctrine,
     )
     dossier["mission_id"] = store.new_mission_id(goal)
     # Stamp the canonical project root so store.list_missions can scope history to
@@ -200,6 +207,7 @@ def run(
     context_clause: Optional[str] = None,
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
+    persona_doctrine: Optional[dict] = None,
 ) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
@@ -229,6 +237,7 @@ def run(
         asset_clause=asset_clause, render_assets=render_assets,
         context_clause=context_clause,
         mcp_config_path=mcp_config_path, mcp_allowed_tools=mcp_allowed_tools,
+        persona_doctrine=persona_doctrine,
     )
 
 
@@ -243,6 +252,7 @@ def resume(
     context_clause: Optional[str] = None,
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
+    persona_doctrine: Optional[dict] = None,
 ) -> MissionResult:
     """Re-run a saved mission's goal through the engine.
 
@@ -261,4 +271,5 @@ def resume(
         asset_clause=asset_clause, render_assets=render_assets,
         context_clause=context_clause,
         mcp_config_path=mcp_config_path, mcp_allowed_tools=mcp_allowed_tools,
+        persona_doctrine=persona_doctrine,
     )

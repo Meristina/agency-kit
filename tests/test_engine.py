@@ -591,3 +591,96 @@ def test_run_mission_cli_without_mcp_leaves_every_command_clean(monkeypatch):
     seen = _capture_cmds_engine(monkeypatch)
     cli_engine.run_mission_cli("launch a brand", engine="claude-code")
     assert seen and all("--mcp-config" not in c for _k, c in seen)
+
+
+# ── Wave 6 — persona doctrine hook (prompt-text injection, not an argv splice) ───
+
+# A sentinel that can never appear in a real doctrine file, so `in`/`not in` is unambiguous.
+PERSONA_DOCTRINE = "You are a razor-focused growth marketer — ZZQ-PERSONA-SENTINEL."
+
+
+def test_dept_prompt_byte_identical_without_persona():
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    # None, an empty dict, and a dict lacking THIS dept's key are all byte-identical.
+    assert base == cli_engine._dept_prompt("marketing", "launch a brand", {}, persona_doctrine=None)
+    assert base == cli_engine._dept_prompt("marketing", "launch a brand", {}, persona_doctrine={})
+    assert base == cli_engine._dept_prompt(
+        "marketing", "launch a brand", {}, persona_doctrine={"solve": PERSONA_DOCTRINE})
+    # The reserved "commander" key is synthesis-only — it must NOT contaminate a dept prompt.
+    assert base == cli_engine._dept_prompt(
+        "marketing", "launch a brand", {}, persona_doctrine={"commander": PERSONA_DOCTRINE})
+
+
+def test_dept_prompt_weaves_persona_into_the_doctrine_block_when_set():
+    base = cli_engine._dept_prompt("marketing", "launch a brand", {})
+    withp = cli_engine._dept_prompt(
+        "marketing", "launch a brand", {}, persona_doctrine={"marketing": PERSONA_DOCTRINE})
+    assert withp != base
+    assert PERSONA_DOCTRINE in withp
+    # It lands INSIDE the DEPARTMENT DOCTRINE block — before the "Produce a…" instruction,
+    # not tacked on at the very end (that is the augment-the-doctrine contract).
+    assert withp.index(PERSONA_DOCTRINE) < withp.index("Produce a complete")
+    # AUGMENT, not replace: the shared department doctrine must SURVIVE alongside the persona,
+    # ordered shared-then-persona (so a regression to `doctrine = persona` would fail here).
+    shared = cli_engine._load("_shared-marketing")
+    assert shared and shared in withp
+    assert withp.index(shared) < withp.index(PERSONA_DOCTRINE)
+
+
+def test_dept_prompt_uses_only_the_matching_dept_persona():
+    other = "OTHER-DEPT-ZZQ-SENTINEL"
+    withp = cli_engine._dept_prompt(
+        "marketing", "launch a brand", {},
+        persona_doctrine={"solve": other, "marketing": PERSONA_DOCTRINE})
+    assert PERSONA_DOCTRINE in withp    # this dept's persona is injected…
+    assert other not in withp           # …never another dept's (no cross-dept bleed)
+
+
+def test_synth_prompt_byte_identical_without_persona():
+    base = cli_engine._synth_prompt("g", ["marketing"], {})
+    assert base == cli_engine._synth_prompt("g", ["marketing"], {}, persona_doctrine=None)
+    assert base == cli_engine._synth_prompt("g", ["marketing"], {}, persona_doctrine={})
+    # A dept key with no reserved "commander" entry leaves synthesis byte-identical.
+    assert base == cli_engine._synth_prompt(
+        "g", ["marketing"], {}, persona_doctrine={"marketing": PERSONA_DOCTRINE})
+
+
+def test_synth_prompt_weaves_commander_persona_when_set():
+    base = cli_engine._synth_prompt("g", ["marketing"], {})
+    withp = cli_engine._synth_prompt(
+        "g", ["marketing"], {}, persona_doctrine={"commander": PERSONA_DOCTRINE})
+    assert withp != base
+    assert PERSONA_DOCTRINE in withp
+
+
+def test_synth_persona_composes_with_fixes():
+    # The veto-loop fixes block and the commander persona are independent (Art. IX untouched).
+    withp = cli_engine._synth_prompt(
+        "g", ["marketing"], {}, fixes="resolve X",
+        persona_doctrine={"commander": PERSONA_DOCTRINE})
+    assert PERSONA_DOCTRINE in withp
+    assert "resolve X" in withp
+
+
+def test_run_mission_cli_threads_persona_into_dept_and_synth_not_router_or_inspector(monkeypatch):
+    prompts = _capture_prompts_engine(monkeypatch)
+    cli_engine.run_mission_cli(
+        "launch a brand",
+        persona_doctrine={"marketing": PERSONA_DOCTRINE, "commander": PERSONA_DOCTRINE},
+    )
+    route = [p for p in prompts if "json array" in p.lower()]
+    inspect = [p for p in prompts if "issue a verdict" in p.lower()]
+    dept_synth = [
+        p for p in prompts
+        if "json array" not in p.lower() and "issue a verdict" not in p.lower()
+    ]
+    assert route and inspect and dept_synth
+    assert all(PERSONA_DOCTRINE in p for p in dept_synth)   # reaches dept + synthesis…
+    assert all(PERSONA_DOCTRINE not in p for p in route)    # …never the router…
+    assert all(PERSONA_DOCTRINE not in p for p in inspect)  # …never the inspector
+
+
+def test_run_mission_cli_default_none_appends_no_persona(monkeypatch):
+    prompts = _capture_prompts_engine(monkeypatch)
+    cli_engine.run_mission_cli("launch a brand")
+    assert all(PERSONA_DOCTRINE not in p for p in prompts)
