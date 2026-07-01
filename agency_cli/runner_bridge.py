@@ -123,6 +123,7 @@ def _run_and_persist(
     should_cancel: Optional[Callable[[], bool]] = None,
     asset_clause: Optional[str] = None,
     render_assets: Optional[Callable[[dict], None]] = None,
+    context_clause: Optional[str] = None,
 ) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
@@ -143,6 +144,10 @@ def _run_and_persist(
     serialized missions/<id>/ copy carry the manifest it writes into
     `dossier['assets']` (and the cosmetic rewrite it makes to `dossier['delivered']`).
     It is gated strictly on a clean Inspector PASS and is best-effort.
+
+    `context_clause` is the Studio's Wave-4 RAG hook — sourced excerpts from the user's
+    uploaded documents, threaded to `run_mission_cli` and appended to the department +
+    synthesis prompts. Default None ⇒ unchanged; same additive contract as `asset_clause`.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
@@ -152,6 +157,7 @@ def _run_and_persist(
         on_event=on_event,
         should_cancel=should_cancel,
         asset_clause=asset_clause,
+        context_clause=context_clause,
     )
     dossier["mission_id"] = store.new_mission_id(goal)
     # Stamp the canonical project root so store.list_missions can scope history to
@@ -182,6 +188,7 @@ def run(
     should_cancel: Optional[Callable[[], bool]] = None,
     asset_clause: Optional[str] = None,
     render_assets: Optional[Callable[[dict], None]] = None,
+    context_clause: Optional[str] = None,
 ) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
@@ -197,7 +204,8 @@ def run(
     boundaries; if it fires the mission stops and nothing is persisted.
 
     `asset_clause` / `render_assets` are the Studio's optional multimodal hook (see
-    `_run_and_persist`); default None ⇒ unchanged behaviour.
+    `_run_and_persist`); default None ⇒ unchanged behaviour. `context_clause` is the
+    Wave-4 RAG hook (sourced excerpts from the user's docs); default None ⇒ unchanged.
 
     Returns a MissionResult (path + dossier) so callers can read the real verdict.
     """
@@ -205,6 +213,7 @@ def run(
         goal, project_root, engine,
         on_event=on_event, should_cancel=should_cancel,
         asset_clause=asset_clause, render_assets=render_assets,
+        context_clause=context_clause,
     )
 
 
@@ -216,6 +225,7 @@ def resume(
     should_cancel: Optional[Callable[[], bool]] = None,
     asset_clause: Optional[str] = None,
     render_assets: Optional[Callable[[dict], None]] = None,
+    context_clause: Optional[str] = None,
 ) -> MissionResult:
     """Re-run a saved mission's goal through the engine.
 
@@ -232,4 +242,5 @@ def resume(
         goal, project_root, engine,
         on_event=on_event, should_cancel=should_cancel,
         asset_clause=asset_clause, render_assets=render_assets,
+        context_clause=context_clause,
     )
