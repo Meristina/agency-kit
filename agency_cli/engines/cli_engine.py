@@ -42,6 +42,35 @@ _ROUTE_CMD: dict = {
 }
 
 
+def _with_mcp(
+    cmd: list,
+    mcp_config_path: Optional[str] = None,
+    mcp_allowed_tools: Optional[list] = None,
+) -> list:
+    """Return ``cmd`` with MCP tool-calling flags spliced in, or ``cmd`` unchanged when no MCP
+    config is given — an additive, default-None studio hook.
+
+    Only the ``claude-code`` engine speaks ``--mcp-config`` (it is the ``--allowedTools``
+    family), so the splice is gated on that flag being present; every other engine's command
+    is byte-identical. The allowed ``mcp__*`` tool patterns are appended to the existing
+    ``--allowedTools`` value, and ``--mcp-config <path> --strict-mcp-config`` is inserted before
+    the trailing ``-p`` prompt flag — so the studio's configured MCP servers' tools become
+    available to the model on the calls this is used for. ``--strict-mcp-config`` makes the CLI
+    use ONLY the studio-supplied config (never the user's global ``.mcp.json``), so the server
+    set is exactly what the studio wrote from ``mcp.json``.
+
+    Returns a NEW list; the shared ``ENGINES`` entry is never mutated."""
+    if not mcp_config_path or "--allowedTools" not in cmd:
+        return cmd
+    out = list(cmd)
+    if mcp_allowed_tools:
+        after_value = out.index("--allowedTools") + 2   # past the flag and its first value
+        out[after_value:after_value] = [str(t) for t in mcp_allowed_tools]
+    before_prompt = out.index("-p") if "-p" in out else len(out)
+    out[before_prompt:before_prompt] = ["--mcp-config", str(mcp_config_path), "--strict-mcp-config"]
+    return out
+
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _agents_dir() -> Path:
@@ -401,6 +430,8 @@ def run_mission_cli(
     should_cancel: Optional[Callable[[], bool]] = None,
     asset_clause: Optional[str] = None,
     context_clause: Optional[str] = None,
+    mcp_config_path: Optional[str] = None,
+    mcp_allowed_tools: Optional[list] = None,
 ) -> dict:
     """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
 
@@ -436,10 +467,22 @@ def run_mission_cli(
     Same additive, default-None contract as ``asset_clause`` — NOT given to the
     inspector, router, or slug, and when None nothing is appended (byte-identical to
     standalone agency-kit). The veto loop / _short_verdict logic is untouched.
+
+    ``mcp_config_path`` / ``mcp_allowed_tools`` are the studio's Wave-6 MCP tool-calling
+    hook (claude-code only): a path to a ``--mcp-config`` file the studio wrote from the
+    user's configured MCP servers, and the ``mcp__*`` tool patterns to allow. When set they
+    are spliced (via ``_with_mcp``) into the DEPARTMENT and SYNTHESIS commands only — so the
+    model can invoke those servers' tools while producing deliverables — and NOT into the
+    router or the inspector (which stay on the base command, exactly like ``context_clause``
+    is withheld from the inspector, so the Art. IX quality gate is unchanged). Default None ⇒
+    the command is byte-identical to standalone agency-kit; a non-claude engine ignores them.
     """
     cmd = ENGINES.get(engine)
     if cmd is None:
         raise ValueError(f"Unknown engine '{engine}'. Available: {', '.join(ENGINES)}")
+    # Departments + synthesis may call the user's MCP tools; the router + inspector never do
+    # (they run on the base `cmd`), so the quality gate's inputs are untouched by this hook.
+    exec_cmd = _with_mcp(cmd, mcp_config_path, mcp_allowed_tools)
     if shutil.which(cmd[0]) is None:  # fail fast with a clear message if the CLI is absent
         raise RuntimeError(
             f"engine '{engine}' needs the '{cmd[0]}' CLI on PATH — install it and "
@@ -458,7 +501,7 @@ def run_mission_cli(
         print(f"[{engine}] {dept}...", end=" ", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "start"})
         dept_outputs[dept] = _call(
-            cmd,
+            exec_cmd,
             _dept_prompt(dept, goal, dept_outputs, asset_clause=asset_clause,
                          context_clause=context_clause),
             should_cancel=should_cancel,
@@ -477,7 +520,7 @@ def run_mission_cli(
         print(f"[{engine}] {label}...", end=" ", flush=True)
         _emit(on_event, {"phase": "synth", "iteration": iteration, "status": "start"})
         delivered = _call(
-            cmd,
+            exec_cmd,
             _synth_prompt(goal, route, dept_outputs, fixes, asset_clause=asset_clause,
                           context_clause=context_clause),
             should_cancel=should_cancel,
