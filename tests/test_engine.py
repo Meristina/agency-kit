@@ -521,3 +521,73 @@ def test_run_mission_cli_default_none_appends_no_context_clause(monkeypatch):
     prompts = _capture_prompts_engine(monkeypatch)
     cli_engine.run_mission_cli("launch a brand")
     assert all(CONTEXT_CLAUSE not in p for p in prompts)
+
+
+# ── Wave 6 — MCP tool-calling hook (_with_mcp + run_mission_cli threading) ───────
+
+def test_with_mcp_none_is_unchanged():
+    base = cli_engine.ENGINES["claude-code"]
+    assert cli_engine._with_mcp(base, None, None) is base
+    assert cli_engine._with_mcp(base, None, ["mcp__x"]) is base
+
+
+def test_with_mcp_splices_config_and_tools_without_mutating_base():
+    base = cli_engine.ENGINES["claude-code"]
+    out = cli_engine._with_mcp(base, "/tmp/mcp.json", ["mcp__wiki", "mcp__db"])
+    assert out == ["claude", "--allowedTools", "WebSearch", "mcp__wiki", "mcp__db",
+                   "--mcp-config", "/tmp/mcp.json", "--strict-mcp-config", "-p"]
+    assert cli_engine.ENGINES["claude-code"] == ["claude", "--allowedTools", "WebSearch", "-p"]
+
+
+def test_with_mcp_config_without_tools_still_adds_config():
+    base = cli_engine.ENGINES["claude-code"]
+    out = cli_engine._with_mcp(base, "/tmp/m.json", None)
+    assert out == ["claude", "--allowedTools", "WebSearch",
+                   "--mcp-config", "/tmp/m.json", "--strict-mcp-config", "-p"]
+
+
+def test_with_mcp_leaves_non_allowedtools_engine_untouched():
+    codex = cli_engine.ENGINES["codex"]   # no --allowedTools flag
+    assert cli_engine._with_mcp(codex, "/tmp/m.json", ["mcp__x"]) is codex
+
+
+def _capture_cmds_engine(monkeypatch):
+    """Stub _call to record the (marker, cmd) of every phase — so a test can assert which
+    phases receive the MCP-augmented command. Classifies by the same stable prompt markers."""
+    monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
+    seen = []
+
+    def _call(cmd, prompt, timeout=900, should_cancel=None):
+        low = prompt.lower()
+        if "json array" in low:
+            seen.append(("route", list(cmd)))
+            return '["marketing"]'
+        if "issue a verdict" in low:
+            seen.append(("inspect", list(cmd)))
+            return "VERDICT: PASS"
+        seen.append(("exec", list(cmd)))   # dept or synthesis
+        return "DELIVERED OUTPUT"
+
+    monkeypatch.setattr(cli_engine, "_call", _call)
+    return seen
+
+
+def test_run_mission_cli_threads_mcp_into_dept_and_synth_not_router_or_inspector(monkeypatch):
+    seen = _capture_cmds_engine(monkeypatch)
+    cli_engine.run_mission_cli(
+        "launch a brand", engine="claude-code",
+        mcp_config_path="/tmp/mcp.json", mcp_allowed_tools=["mcp__wiki"],
+    )
+    exec_cmds = [c for k, c in seen if k == "exec"]
+    other_cmds = [c for k, c in seen if k in ("route", "inspect")]
+    assert exec_cmds and other_cmds
+    # Departments + synthesis get the MCP flags…
+    assert all("--mcp-config" in c and "mcp__wiki" in c for c in exec_cmds)
+    # …the router and the inspector never do (Art. IX gate inputs unchanged).
+    assert all("--mcp-config" not in c for c in other_cmds)
+
+
+def test_run_mission_cli_without_mcp_leaves_every_command_clean(monkeypatch):
+    seen = _capture_cmds_engine(monkeypatch)
+    cli_engine.run_mission_cli("launch a brand", engine="claude-code")
+    assert seen and all("--mcp-config" not in c for _k, c in seen)

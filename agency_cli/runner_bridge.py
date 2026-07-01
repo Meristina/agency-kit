@@ -124,6 +124,8 @@ def _run_and_persist(
     asset_clause: Optional[str] = None,
     render_assets: Optional[Callable[[dict], None]] = None,
     context_clause: Optional[str] = None,
+    mcp_config_path: Optional[str] = None,
+    mcp_allowed_tools: Optional[list] = None,
 ) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
@@ -148,6 +150,11 @@ def _run_and_persist(
     `context_clause` is the Studio's Wave-4 RAG hook — sourced excerpts from the user's
     uploaded documents, threaded to `run_mission_cli` and appended to the department +
     synthesis prompts. Default None ⇒ unchanged; same additive contract as `asset_clause`.
+
+    `mcp_config_path` / `mcp_allowed_tools` are the Studio's Wave-6 MCP tool-calling hook —
+    a `--mcp-config` file (built from the user's MCP servers) and the `mcp__*` tools to allow,
+    threaded to `run_mission_cli` so departments + synthesis can invoke those tools. Default
+    None ⇒ unchanged; same additive contract as `context_clause`.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
@@ -158,6 +165,8 @@ def _run_and_persist(
         should_cancel=should_cancel,
         asset_clause=asset_clause,
         context_clause=context_clause,
+        mcp_config_path=mcp_config_path,
+        mcp_allowed_tools=mcp_allowed_tools,
     )
     dossier["mission_id"] = store.new_mission_id(goal)
     # Stamp the canonical project root so store.list_missions can scope history to
@@ -189,6 +198,8 @@ def run(
     asset_clause: Optional[str] = None,
     render_assets: Optional[Callable[[dict], None]] = None,
     context_clause: Optional[str] = None,
+    mcp_config_path: Optional[str] = None,
+    mcp_allowed_tools: Optional[list] = None,
 ) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
@@ -206,6 +217,9 @@ def run(
     `asset_clause` / `render_assets` are the Studio's optional multimodal hook (see
     `_run_and_persist`); default None ⇒ unchanged behaviour. `context_clause` is the
     Wave-4 RAG hook (sourced excerpts from the user's docs); default None ⇒ unchanged.
+    `mcp_config_path` / `mcp_allowed_tools` are the Wave-6 MCP tool-calling hook (a
+    `--mcp-config` file + allowed `mcp__*` tools for department/synthesis calls); default
+    None ⇒ unchanged.
 
     Returns a MissionResult (path + dossier) so callers can read the real verdict.
     """
@@ -214,6 +228,7 @@ def run(
         on_event=on_event, should_cancel=should_cancel,
         asset_clause=asset_clause, render_assets=render_assets,
         context_clause=context_clause,
+        mcp_config_path=mcp_config_path, mcp_allowed_tools=mcp_allowed_tools,
     )
 
 
@@ -226,6 +241,8 @@ def resume(
     asset_clause: Optional[str] = None,
     render_assets: Optional[Callable[[dict], None]] = None,
     context_clause: Optional[str] = None,
+    mcp_config_path: Optional[str] = None,
+    mcp_allowed_tools: Optional[list] = None,
 ) -> MissionResult:
     """Re-run a saved mission's goal through the engine.
 
@@ -243,4 +260,5 @@ def resume(
         on_event=on_event, should_cancel=should_cancel,
         asset_clause=asset_clause, render_assets=render_assets,
         context_clause=context_clause,
+        mcp_config_path=mcp_config_path, mcp_allowed_tools=mcp_allowed_tools,
     )

@@ -120,12 +120,16 @@ def _stub_mission(monkeypatch, *, verdict="PASS", delivered="HERO ASSET", residu
     if residual:
         base["residual_risk"] = "did not PASS"
 
-    captured = {"asset_clause": "<unset>", "context_clause": "<unset>"}
+    captured = {"asset_clause": "<unset>", "context_clause": "<unset>",
+                "mcp_config_path": "<unset>", "mcp_allowed_tools": "<unset>"}
 
     def _fake_run(goal, engine="claude-code", on_event=None, should_cancel=None,
-                  asset_clause=None, context_clause=None):
+                  asset_clause=None, context_clause=None,
+                  mcp_config_path=None, mcp_allowed_tools=None):
         captured["asset_clause"] = asset_clause
         captured["context_clause"] = context_clause
+        captured["mcp_config_path"] = mcp_config_path
+        captured["mcp_allowed_tools"] = mcp_allowed_tools
         return dict(base)  # a fresh copy per call
 
     monkeypatch.setattr("agency_cli.engines.cli_engine.run_mission_cli", _fake_run)
@@ -240,6 +244,24 @@ def test_default_run_forwards_no_context_clause(tmp_path, monkeypatch):
     captured = _stub_mission(monkeypatch, verdict="PASS")
     runner_bridge.run("launch a brand", project_root=str(tmp_path))
     assert captured["context_clause"] is None
+
+
+def test_mcp_tool_hook_is_threaded_to_the_engine(tmp_path, monkeypatch):
+    # Wave 6: the MCP tool-calling hook reaches run_mission_cli through the bridge.
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path),
+                      mcp_config_path="/tmp/mcp.json", mcp_allowed_tools=["mcp__wiki"])
+    assert captured["mcp_config_path"] == "/tmp/mcp.json"
+    assert captured["mcp_allowed_tools"] == ["mcp__wiki"]
+
+
+def test_default_run_forwards_no_mcp_tool_hook(tmp_path, monkeypatch):
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path))
+    assert captured["mcp_config_path"] is None
+    assert captured["mcp_allowed_tools"] is None
 
 
 def test_resume_forwards_the_multimodal_hook(tmp_path, monkeypatch):
