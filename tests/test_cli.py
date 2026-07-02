@@ -122,17 +122,20 @@ def _stub_mission(monkeypatch, *, verdict="PASS", delivered="HERO ASSET", residu
 
     captured = {"asset_clause": "<unset>", "context_clause": "<unset>",
                 "mcp_config_path": "<unset>", "mcp_allowed_tools": "<unset>",
-                "persona_doctrine": "<unset>"}
+                "persona_doctrine": "<unset>",
+                "on_checkpoint": "<unset>", "resume_state": "<unset>"}
 
     def _fake_run(goal, engine="claude-code", on_event=None, should_cancel=None,
                   asset_clause=None, context_clause=None,
                   mcp_config_path=None, mcp_allowed_tools=None,
-                  persona_doctrine=None):
+                  persona_doctrine=None, on_checkpoint=None, resume_state=None):
         captured["asset_clause"] = asset_clause
         captured["context_clause"] = context_clause
         captured["mcp_config_path"] = mcp_config_path
         captured["mcp_allowed_tools"] = mcp_allowed_tools
         captured["persona_doctrine"] = persona_doctrine
+        captured["on_checkpoint"] = on_checkpoint
+        captured["resume_state"] = resume_state
         return dict(base)  # a fresh copy per call
 
     monkeypatch.setattr("agency_cli.engines.cli_engine.run_mission_cli", _fake_run)
@@ -308,6 +311,38 @@ def test_resume_forwards_the_persona_hook(tmp_path, monkeypatch):
     runner_bridge.resume("001-old", project_root=str(tmp_path),
                          persona_doctrine={"commander": "You are a decisive agency chief."})
     assert captured["persona_doctrine"] == {"commander": "You are a decisive agency chief."}
+
+
+def test_checkpoint_and_resume_state_threaded_through_run(tmp_path, monkeypatch):
+    # The crash-recovery hooks reach run_mission_cli through run().
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    cb = lambda snap: None
+    state = {"route": ["marketing"], "dept_outputs": {}, "verdicts": [], "iteration": 0, "delivered": ""}
+    runner_bridge.run("launch a brand", project_root=str(tmp_path),
+                      on_checkpoint=cb, resume_state=state)
+    assert captured["on_checkpoint"] is cb
+    assert captured["resume_state"] == state
+
+
+def test_default_run_forwards_no_checkpoint_or_resume_state(tmp_path, monkeypatch):
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    runner_bridge.run("launch a brand", project_root=str(tmp_path))
+    assert captured["on_checkpoint"] is None
+    assert captured["resume_state"] is None
+
+
+def test_resume_forwards_on_checkpoint_but_never_resume_state(tmp_path, monkeypatch):
+    # resume(mission_id) re-runs from scratch — it forwards on_checkpoint but never a resume_state
+    # (a mission-id re-run and a checkpoint-continue are mutually exclusive operations).
+    from agency_cli import runner_bridge
+    captured = _stub_mission(monkeypatch, verdict="PASS")
+    monkeypatch.setattr("agency_kit.store.load", lambda mid: {"goal": "launch a brand"})
+    cb = lambda snap: None
+    runner_bridge.resume("001-old", project_root=str(tmp_path), on_checkpoint=cb)
+    assert captured["on_checkpoint"] is cb
+    assert captured["resume_state"] is None
 
 
 def test_dossier_md_assets_section_only_when_present():

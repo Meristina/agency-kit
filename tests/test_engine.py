@@ -121,6 +121,141 @@ def test_run_mission_cli_rejects_unknown_engine():
         cli_engine.run_mission_cli("goal", engine="nonsense")
 
 
+# ── checkpoint / resume (crash-recovery hooks) ────────────────────────────────
+# Offline like the rest: only the `_call` subprocess boundary + PATH lookup are stubbed. The real
+# route/dept/veto loop runs, and on_checkpoint / on_event / resume_state are exercised end-to-end.
+
+def _recording_engine(monkeypatch, *, route_json='["solve", "product"]', verdicts=("VERDICT: PASS",)):
+    """Stub `_call`: route → JSON array, inspect → next scripted verdict, else canned dept/synth
+    text. Returns the list of prompts `_call` received (so a test can assert which phases ran)."""
+    monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
+    prompts = []
+    seq = iter(verdicts)
+
+    def _call(cmd, prompt, timeout=900, should_cancel=None):
+        prompts.append(prompt)
+        low = prompt.lower()
+        if "json array" in low:
+            return route_json
+        if "issue a verdict" in low:
+            return next(seq)
+        return "DEPARTMENT / SYNTHESIS OUTPUT"
+
+    monkeypatch.setattr(cli_engine, "_call", _call)
+    return prompts
+
+
+def test_checkpoint_fires_at_route_each_dept_and_each_cycle(monkeypatch):
+    _recording_engine(monkeypatch, verdicts=["VETO: fix sourcing", "VERDICT: PASS"])
+    snaps = []
+    cli_engine.run_mission_cli("diagnose and relaunch onboarding", engine="claude-code",
+                               on_checkpoint=snaps.append)
+    phases = [s["phase"] for s in snaps]
+    assert phases == ["route", "dept", "dept", "cycle", "cycle"]
+    # route snapshot: route decided, no dept run yet.
+    assert snaps[0]["route"] == ["solve", "product"] and snaps[0]["dept_outputs"] == {}
+    # dept snapshots accumulate; the FIRST is frozen at one dept even though more ran later
+    # (copy semantics — a later phase must not mutate an already-emitted snapshot).
+    assert set(snaps[1]["dept_outputs"]) == {"solve"}
+    assert set(snaps[2]["dept_outputs"]) == {"solve", "product"}
+    # cycle snapshots: iteration counts up; fixes set on the VETO cycle, cleared on the PASS.
+    assert snaps[3]["iteration"] == 1 and snaps[3]["fixes"] and len(snaps[3]["verdicts"]) == 1
+    assert snaps[4]["iteration"] == 2 and snaps[4]["fixes"] is None
+    assert snaps[4]["verdicts"][-1]["verdict"] == "PASS"
+
+
+def test_checkpoint_callback_exception_never_breaks_mission(monkeypatch):
+    _recording_engine(monkeypatch, verdicts=["VERDICT: PASS"])
+
+    def _boom(_snap):
+        raise RuntimeError("studio persistence blew up")
+
+    d = cli_engine.run_mission_cli("ship a feature", engine="claude-code", on_checkpoint=_boom)
+    assert d["verdicts"][-1]["verdict"] == "PASS"   # a misbehaving checkpoint never aborts the run
+
+
+def test_none_checkpoint_and_resume_are_byte_identical(monkeypatch):
+    # Passing the new kwargs as None must yield the exact same dossier as omitting them.
+    _recording_engine(monkeypatch, verdicts=["VERDICT: PASS"])
+    base = cli_engine.run_mission_cli("ship a feature", engine="claude-code")
+    _recording_engine(monkeypatch, verdicts=["VERDICT: PASS"])
+    withnone = cli_engine.run_mission_cli("ship a feature", engine="claude-code",
+                                          on_checkpoint=None, resume_state=None)
+    assert withnone == base
+
+
+def test_resume_skips_routing_and_completed_departments(monkeypatch):
+    prompts = _recording_engine(monkeypatch, verdicts=["VERDICT: PASS"])
+    events = []
+    state = {"route": ["solve", "product"], "dept_outputs": {"solve": "prior solve output"},
+             "verdicts": [], "iteration": 0, "delivered": ""}
+    d = cli_engine.run_mission_cli("diagnose and relaunch", engine="claude-code",
+                                   resume_state=state, on_event=events.append)
+    # No routing call was ever made (route reused from the snapshot).
+    assert not any("json array" in p.lower() for p in prompts)
+    # 'solve' is skipped (a resumed done event, no start); 'product' actually runs.
+    solve_evs = [e for e in events if e.get("dept") == "solve"]
+    product_evs = [e for e in events if e.get("dept") == "product"]
+    assert solve_evs == [{"phase": "dept", "dept": "solve", "status": "done", "resumed": True}]
+    assert {"phase": "dept", "dept": "product", "status": "start"} in product_evs
+    assert d["dept_outputs"]["solve"] == "prior solve output"   # not re-run
+    assert d["verdicts"][-1]["verdict"] == "PASS"
+
+
+def test_resume_reenters_veto_loop_with_saved_iteration_and_fixes(monkeypatch):
+    prompts = _recording_engine(monkeypatch, verdicts=["VERDICT: PASS"])
+    state = {"route": ["product"], "dept_outputs": {"product": "out"},
+             "verdicts": [{"engine": "claude-code", "verdict": "VETO", "detail": "d", "iteration": 1}],
+             "iteration": 1, "delivered": "draft one", "fixes": "SOURCE EVERY STAT"}
+    d = cli_engine.run_mission_cli("relaunch", engine="claude-code", resume_state=state)
+    # The next synthesis carries the saved fixes into its prompt.
+    assert any("SOURCE EVERY STAT" in p for p in prompts)
+    # The saved verdict is preserved and the loop continued (iteration 2), not restarted.
+    assert [v["verdict"] for v in d["verdicts"]] == ["VETO", "PASS"]
+    assert d["iteration"] == 2   # continued from 1, budget preserved (not a fresh 3)
+
+
+def test_resume_at_cap_finalizes_with_residual_risk_and_no_calls(monkeypatch):
+    prompts = _recording_engine(monkeypatch, verdicts=[])   # no verdict should ever be pulled
+    verdicts = [{"engine": "claude-code", "verdict": "VETO", "detail": "d", "iteration": i}
+                for i in (1, 2, 3)]
+    state = {"route": ["product"], "dept_outputs": {"product": "out"},
+             "verdicts": verdicts, "iteration": 3, "delivered": "best effort draft"}
+    d = cli_engine.run_mission_cli("hard mission", engine="claude-code", resume_state=state)
+    assert prompts == []                       # zero engine calls — nothing left to run
+    assert d["iteration"] == cli_engine.MAX_ITERS
+    assert d["delivered"] == "best effort draft"
+    assert "residual_risk" in d and "did not PASS" in d["residual_risk"]
+
+
+def test_resume_always_inspects_before_delivery(monkeypatch):
+    prompts = _recording_engine(monkeypatch, verdicts=["VERDICT: PASS"])
+    state = {"route": ["product"], "dept_outputs": {"product": "out"},
+             "verdicts": [{"engine": "claude-code", "verdict": "VETO", "detail": "d", "iteration": 1}],
+             "iteration": 1, "delivered": "draft one", "fixes": "fix it"}
+    cli_engine.run_mission_cli("relaunch", engine="claude-code", resume_state=state)
+    # A resumed mission never ships a synthesis without re-inspecting it.
+    assert any("issue a verdict" in p.lower() for p in prompts)
+
+
+@pytest.mark.parametrize("bad", [
+    {"dept_outputs": {}, "verdicts": [], "iteration": 0, "delivered": ""},          # missing route
+    {"route": ["product"], "dept_outputs": {"nope": "x"}, "verdicts": [],
+     "iteration": 0, "delivered": ""},                                              # dept ⊄ route
+    {"route": ["product"], "dept_outputs": {}, "verdicts": [],
+     "iteration": 2, "delivered": "d"},                                            # iteration != len(verdicts)
+    {"route": ["product"], "dept_outputs": {}, "iteration": 1, "delivered": "",
+     "verdicts": [{"verdict": "VETO", "iteration": 1}]},                            # empty delivered w/ cycle
+    {"route": ["product"], "dept_outputs": {}, "iteration": 1, "delivered": "d",
+     "verdicts": [{"verdict": "PASS", "iteration": 1}]},                            # already complete
+])
+def test_malformed_or_completed_resume_state_raises_valueerror(monkeypatch, bad):
+    monkeypatch.setattr(cli_engine.shutil, "which", lambda b: "/usr/local/bin/" + b)
+    monkeypatch.setattr(cli_engine, "_call", lambda *a, **k: pytest.fail("must not run"))
+    with pytest.raises(ValueError):
+        cli_engine.run_mission_cli("goal", engine="claude-code", resume_state=bad)
+
+
 class _FakePopen:
     """Stand-in for ``subprocess.Popen`` driving ``_call`` offline.
 
