@@ -429,6 +429,91 @@ def _emit(on_event: Optional[Callable], event: dict) -> None:
         pass
 
 
+def _checkpoint(
+    on_checkpoint: Optional[Callable],
+    phase: str,
+    goal: str,
+    engine: str,
+    route: list,
+    dept_outputs: dict,
+    delivered: str = "",
+    verdicts: tuple = (),
+    iteration: int = 0,
+    fixes: Optional[str] = None,
+) -> None:
+    """Fire the optional checkpoint callback with a JSON-serializable snapshot of the mission's
+    completed state, swallowing any error.
+
+    Like ``_emit`` this is purely observational — the studio persists the snapshot so a crashed
+    mission can be resumed (``resume_state``), but a misbehaving callback must never abort or alter
+    a live mission. When ``on_checkpoint`` is None this is a no-op, so default behaviour — and the
+    existing suite — is byte-identical.
+
+    ``phase`` is the boundary just completed: ``"route"`` (route decided, no dept run yet),
+    ``"dept"`` (a department finished), or ``"cycle"`` (a synth→inspect cycle completed). The
+    snapshot's invariants — relied on by ``_validate_resume_state`` — are: ``iteration ==
+    len(verdicts)``; ``delivered`` is always the output of an ALREADY-INSPECTED cycle (checkpoints
+    fire only AFTER a verdict is recorded, never mid-synthesis); and ``fixes`` is non-None iff the
+    last verdict was a retry verdict (it feeds the NEXT synthesis). ``route`` / ``dept_outputs`` /
+    ``verdicts`` are copied so a later phase mutating them can't corrupt an already-emitted
+    snapshot."""
+    if on_checkpoint is None:
+        return
+    try:
+        on_checkpoint({
+            "version": 1,
+            "phase": phase,
+            "goal": goal,
+            "engine": engine,
+            "route": list(route),
+            "dept_outputs": dict(dept_outputs),
+            "delivered": delivered,
+            "verdicts": [dict(v) for v in verdicts],
+            "iteration": iteration,
+            "fixes": fixes,
+        })
+    except Exception:  # observational only — never let the studio's persistence break the mission
+        pass
+
+
+def _validate_resume_state(state: dict) -> dict:
+    """Validate a checkpoint snapshot before a mission resumes from it, raising ``ValueError`` on
+    anything malformed or already-completed. FAIL LOUD by design: a silently-ignored bad resume
+    would re-run the whole mission from scratch and invisibly re-spend the very work the checkpoint
+    exists to save — so this mirrors the fail-fast ``ValueError`` on an unknown engine, not the
+    graceful degradation of the context hooks.
+
+    A valid resume snapshot must satisfy the invariants ``_checkpoint`` writes (see its docstring):
+    a non-empty string ``route`` list; ``dept_outputs`` keys ⊆ ``route``; an int ``iteration`` in
+    ``0..MAX_ITERS`` equal to ``len(verdicts)``; a non-empty ``delivered`` once any cycle ran; and,
+    when a cycle ran, a last verdict still in ``_RETRY_VERDICTS`` (a PASS — or any non-retry
+    verdict — means the mission had already finished, so its checkpoint should have been deleted;
+    resuming it is a stale-state error). A checkpoint at ``iteration == MAX_ITERS`` is a VALID
+    resume target (it finalises instantly with the standard residual_risk, zero engine calls).
+    Returns the state unchanged so callers can use it inline."""
+    if not isinstance(state, dict):
+        raise ValueError("resume_state must be a dict")
+    route = state.get("route")
+    if not isinstance(route, list) or not route or not all(isinstance(d, str) and d for d in route):
+        raise ValueError("resume_state.route must be a non-empty list of department names")
+    dept_outputs = state.get("dept_outputs") or {}
+    if not isinstance(dept_outputs, dict) or not set(dept_outputs).issubset(set(route)):
+        raise ValueError("resume_state.dept_outputs keys must be a subset of route")
+    verdicts = state.get("verdicts") or []
+    if not isinstance(verdicts, list):
+        raise ValueError("resume_state.verdicts must be a list")
+    iteration = state.get("iteration")
+    if not isinstance(iteration, int) or isinstance(iteration, bool) or not (0 <= iteration <= MAX_ITERS):
+        raise ValueError(f"resume_state.iteration must be an int in 0..{MAX_ITERS}")
+    if iteration != len(verdicts):
+        raise ValueError("resume_state.iteration must equal len(verdicts)")
+    if iteration > 0 and not (state.get("delivered") or "").strip():
+        raise ValueError("resume_state.delivered must be non-empty once a cycle has run")
+    if verdicts and verdicts[-1].get("verdict") not in _RETRY_VERDICTS:
+        raise ValueError("resume_state is already complete (last verdict is not a retry verdict)")
+    return state
+
+
 def run_mission_cli(
     goal: str,
     engine: str = "claude-code",
@@ -439,6 +524,8 @@ def run_mission_cli(
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
     persona_doctrine: Optional[dict] = None,
+    on_checkpoint: Optional[Callable[[dict], None]] = None,
+    resume_state: Optional[dict] = None,
 ) -> dict:
     """Run a full mission via a local agent CLI tool: route → execute → synthesize → inspect.
 
@@ -492,6 +579,25 @@ def run_mission_cli(
     doctrine. Like ``context_clause`` it reaches the DEPARTMENT and SYNTHESIS prompts only —
     NOT the router or inspector — so the Art. IX gate's inputs are unchanged. Default None (or
     a dict lacking a given key) ⇒ that prompt is byte-identical to standalone agency-kit.
+
+    ``on_checkpoint`` / ``resume_state`` are the studio's crash-recovery hooks (a mission is
+    minutes of paid work with no mid-flight persistence, so a transient API drop mid-synthesis
+    loses everything). ``on_checkpoint`` is an observational snapshot callback (``_checkpoint``,
+    same swallow-exceptions discipline as ``on_event``) fired at every phase boundary — after
+    routing, after each department, and after each COMPLETED synth→inspect cycle — so the studio
+    can persist the state. ``resume_state`` is a prior snapshot that re-enters the mission
+    mid-flight: routing is skipped (the saved route is reused), departments already in
+    ``dept_outputs`` are skipped, and the veto loop is re-entered at the saved ``iteration`` with
+    the saved ``delivered``/``fixes``. Both default None ⇒ byte-identical to standalone agency-kit.
+
+    Art. IX is preserved by construction: checkpoints fire ONLY after a verdict is recorded, so a
+    snapshot's ``delivered`` was always inspected; a crash mid-cycle rolls back to the last
+    completed cycle and resume RE-RUNS both that synthesis AND its inspection — no un-inspected
+    result can ever ship. The iteration counter CONTINUES from the snapshot (``while iteration <
+    MAX_ITERS`` re-entered with the saved value), so a resumed mission gets exactly the veto budget
+    it had left, never a fresh one. Neither hook touches the router or inspector prompts, and the
+    veto loop body / ``_short_verdict`` logic is unchanged — resume with identical inputs reproduces
+    the exact state as-if the crash never happened.
     """
     cmd = ENGINES.get(engine)
     if cmd is None:
@@ -504,16 +610,33 @@ def run_mission_cli(
             f"engine '{engine}' needs the '{cmd[0]}' CLI on PATH — install it and "
             f"authenticate first. Check availability with: agency check"
         )
+    # Resume: validate the snapshot up front (fail loud — a bad resume must not silently re-run
+    # from scratch and re-spend the work the checkpoint exists to save).
+    if resume_state is not None:
+        resume_state = _validate_resume_state(resume_state)
 
-    print(f"[{engine}] routing...", end=" ", flush=True)
-    route = _route_via_cli(engine, goal, should_cancel=should_cancel)
-    print(f"{' → '.join(route)}", flush=True)
-    _emit(on_event, {"phase": "route", "status": "done", "route": route})
+    # Route — reuse the saved route on resume (never re-route: routing already spent a call and
+    # the departments below key off it), else route live and checkpoint the decision.
+    if resume_state is not None:
+        route = list(resume_state["route"])
+        print(f"[{engine}] resuming... {' → '.join(route)}", flush=True)
+        _emit(on_event, {"phase": "route", "status": "done", "route": route, "resumed": True})
+    else:
+        print(f"[{engine}] routing...", end=" ", flush=True)
+        route = _route_via_cli(engine, goal, should_cancel=should_cancel)
+        print(f"{' → '.join(route)}", flush=True)
+        _emit(on_event, {"phase": "route", "status": "done", "route": route})
+        _checkpoint(on_checkpoint, "route", goal, engine, route, {})
     _check_cancel(should_cancel)   # CP1: after routing, before any department spends a call
 
-    dept_outputs: dict = {}
+    # Seed completed departments from the snapshot; a resumed run skips them (no re-spend) and only
+    # runs the ones that never finished.
+    dept_outputs: dict = dict(resume_state.get("dept_outputs") or {}) if resume_state else {}
     for dept in route:
         _check_cancel(should_cancel)   # CP2: skip a department that has not started yet
+        if dept in dept_outputs:       # already completed in a prior (crashed) run — don't re-run
+            _emit(on_event, {"phase": "dept", "dept": dept, "status": "done", "resumed": True})
+            continue
         print(f"[{engine}] {dept}...", end=" ", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "start"})
         dept_outputs[dept] = _call(
@@ -525,11 +648,24 @@ def run_mission_cli(
         )
         print("done", flush=True)
         _emit(on_event, {"phase": "dept", "dept": dept, "status": "done"})
+        _checkpoint(on_checkpoint, "dept", goal, engine, route, dept_outputs)
 
-    verdicts: list = []
-    delivered = ""
-    fixes = None
-    iteration = 0
+    # Seed the veto loop from the snapshot (continue the iteration budget — never a fresh one) or
+    # from scratch. Replaying the completed cycles to on_event keeps the GUI timeline coherent
+    # (iteration N doesn't appear from nowhere on a resume).
+    if resume_state:
+        verdicts = [dict(v) for v in resume_state["verdicts"]]
+        delivered = resume_state["delivered"]
+        fixes = resume_state.get("fixes")
+        iteration = resume_state["iteration"]
+        for v in verdicts:
+            _emit(on_event, {"phase": "synth", "iteration": v["iteration"], "status": "done", "resumed": True})
+            _emit(on_event, {"phase": "inspect", "iteration": v["iteration"], "verdict": v["verdict"], "resumed": True})
+    else:
+        verdicts = []
+        delivered = ""
+        fixes = None
+        iteration = 0
     while iteration < MAX_ITERS:
         _check_cancel(should_cancel)   # CP3: between complete synth→inspect cycles, never within one
         iteration += 1
@@ -556,6 +692,11 @@ def run_mission_cli(
         _emit(on_event, {"phase": "inspect", "iteration": iteration, "verdict": token})
 
         verdicts.append({"engine": engine, "verdict": token, "detail": verdict_text, "iteration": iteration})
+        # Checkpoint the completed (inspected) cycle before deciding whether to loop — so a crash in
+        # the NEXT synthesis rolls back to here, and resume re-runs that synthesis + its inspection.
+        _checkpoint(on_checkpoint, "cycle", goal, engine, route, dept_outputs,
+                    delivered=delivered, verdicts=verdicts, iteration=iteration,
+                    fixes=verdict_text if token in _RETRY_VERDICTS else None)
         if token not in _RETRY_VERDICTS:   # PASS, or no actionable verdict — stop
             break
         fixes = verdict_text               # feed the inspector's findings into the next synthesis

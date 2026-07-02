@@ -127,6 +127,8 @@ def _run_and_persist(
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
     persona_doctrine: Optional[dict] = None,
+    on_checkpoint: Optional[Callable[[dict], None]] = None,
+    resume_state: Optional[dict] = None,
 ) -> MissionResult:
     """Drive the engine for `goal`, persist to the ~/.agency store (so
     `agency missions/resume/export` see it) AND serialize the project-local
@@ -161,6 +163,13 @@ def _run_and_persist(
     department (+ the reserved `"commander"` key) → a curated persona string, threaded to
     `run_mission_cli` where it augments the DEPARTMENT DOCTRINE (departments) and commander
     doctrine (synthesis) prompt text only. Default None ⇒ unchanged; same additive contract.
+
+    `on_checkpoint` / `resume_state` are the Studio's crash-recovery hook — an observational
+    snapshot callback fired at each phase boundary, and a prior snapshot to resume an interrupted
+    mission from mid-flight (skip routing + completed departments, re-enter the veto loop at the
+    saved iteration). Threaded straight to `run_mission_cli`. Default None ⇒ unchanged. Note a
+    resumed mission persists under a FRESH mission_id (line below) exactly like a first run — the
+    checkpoint is transient crash-recovery, not the durable dossier.
     """
     from agency_kit import store
     from .engines.cli_engine import run_mission_cli
@@ -174,6 +183,8 @@ def _run_and_persist(
         mcp_config_path=mcp_config_path,
         mcp_allowed_tools=mcp_allowed_tools,
         persona_doctrine=persona_doctrine,
+        on_checkpoint=on_checkpoint,
+        resume_state=resume_state,
     )
     dossier["mission_id"] = store.new_mission_id(goal)
     # Stamp the canonical project root so store.list_missions can scope history to
@@ -208,6 +219,8 @@ def run(
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
     persona_doctrine: Optional[dict] = None,
+    on_checkpoint: Optional[Callable[[dict], None]] = None,
+    resume_state: Optional[dict] = None,
 ) -> MissionResult:
     """Headless run: drive a local agent CLI engine, then serialize the dossier.
 
@@ -229,6 +242,11 @@ def run(
     `--mcp-config` file + allowed `mcp__*` tools for department/synthesis calls); default
     None ⇒ unchanged.
 
+    `on_checkpoint` / `resume_state` are the crash-recovery hook (a snapshot callback fired at
+    phase boundaries, and a prior snapshot to continue an interrupted mission from mid-flight);
+    default None ⇒ unchanged. NB this is distinct from `resume(mission_id)` below, which re-runs a
+    COMPLETED mission's goal from scratch — `resume_state` continues an interrupted one.
+
     Returns a MissionResult (path + dossier) so callers can read the real verdict.
     """
     return _run_and_persist(
@@ -238,6 +256,7 @@ def run(
         context_clause=context_clause,
         mcp_config_path=mcp_config_path, mcp_allowed_tools=mcp_allowed_tools,
         persona_doctrine=persona_doctrine,
+        on_checkpoint=on_checkpoint, resume_state=resume_state,
     )
 
 
@@ -253,14 +272,22 @@ def resume(
     mcp_config_path: Optional[str] = None,
     mcp_allowed_tools: Optional[list] = None,
     persona_doctrine: Optional[dict] = None,
+    on_checkpoint: Optional[Callable[[dict], None]] = None,
 ) -> MissionResult:
-    """Re-run a saved mission's goal through the engine.
+    """Re-run a COMPLETED mission's goal through the engine, from scratch.
 
-    The engine is single-shot (no quota checkpoint), so 'resume' loads the saved
-    dossier, takes its goal, and re-runs it — producing a fresh result that is
-    persisted to the store and serialized identically to run(). The multimodal hook
-    (`asset_clause` / `render_assets`) is forwarded too, so a resumed mission
-    regenerates assets under its fresh mission id exactly as a first run would.
+    NB this is a DIFFERENT operation from the `resume_state` kwarg on `run` /
+    `run_mission_cli`: this loads a saved (finished) dossier, takes only its `goal`, and re-runs
+    the whole mission fresh — route, departments, and synthesis all execute again, producing a
+    new result under a fresh mission id. `resume_state`, by contrast, continues an INTERRUPTED
+    mission from its last checkpoint without re-paying the completed phases. The engine is
+    single-shot (no quota checkpoint), which is why goal-re-run is all this can offer.
+
+    The multimodal hook (`asset_clause` / `render_assets`) is forwarded too, so a re-run
+    regenerates assets under its fresh mission id exactly as a first run would. `on_checkpoint`
+    is forwarded as well (the re-run is a normal mission and can be checkpointed); `resume_state`
+    is intentionally NOT accepted here — a mission_id re-run and a checkpoint-continue are
+    mutually exclusive.
     """
     from agency_kit import store
     saved = store.load(mission_id)
@@ -272,4 +299,5 @@ def resume(
         context_clause=context_clause,
         mcp_config_path=mcp_config_path, mcp_allowed_tools=mcp_allowed_tools,
         persona_doctrine=persona_doctrine,
+        on_checkpoint=on_checkpoint,
     )
